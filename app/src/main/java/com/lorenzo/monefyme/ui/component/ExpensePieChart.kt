@@ -29,6 +29,7 @@ fun ExpensePieChart(
     modifier: Modifier = Modifier,
 ) {
     val total = slices.sumOf { it.totalCents }
+    val donutCenterColor = MaterialTheme.colorScheme.surface
     if (total <= 0L) {
         Box(
             modifier = modifier
@@ -77,7 +78,7 @@ fun ExpensePieChart(
             }
 
             drawCircle(
-                color = MaterialTheme.colorScheme.surface,
+                color = donutCenterColor,
                 radius = size.minDimension * 0.23f,
                 center = center,
             )
