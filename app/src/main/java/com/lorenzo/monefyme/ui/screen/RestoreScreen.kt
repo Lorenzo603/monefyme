@@ -11,15 +11,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,8 +37,12 @@ import com.lorenzo.monefyme.domain.CsvImportResult
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RestoreScreen(viewModel: MainViewModel) {
+fun RestoreScreen(
+    viewModel: MainViewModel,
+    onBack: () -> Unit,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val importResult by viewModel.lastImportResult.collectAsStateWithLifecycle()
@@ -48,41 +61,60 @@ fun RestoreScreen(viewModel: MainViewModel) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Top,
-    ) {
-        Text(
-            text = "Manual CSV restore",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Select a Monefy CSV export to import historical transactions. " +
-                "Re-import is idempotent using duplicate detection (date + category + amount + description + account).",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = {
-                launcher.launch(arrayOf("text/*", "text/csv", "application/csv"))
-            },
-            enabled = !isImporting,
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Restore") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFF74C792),
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White,
+                ),
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Top,
         ) {
-            Text("Select CSV file")
-        }
-
-        if (isImporting) {
-            Spacer(modifier = Modifier.height(12.dp))
-            CircularProgressIndicator()
-        }
-
-        if (importResult != null) {
+            Text(
+                text = "Manual CSV restore",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Select a Monefy CSV export to import historical transactions. " +
+                    "Re-import is idempotent using duplicate detection (date + category + amount + description + account).",
+                style = MaterialTheme.typography.bodyMedium,
+            )
             Spacer(modifier = Modifier.height(16.dp))
-            ImportSummaryCard(importResult = importResult!!)
+            Button(
+                onClick = {
+                    launcher.launch(arrayOf("text/*", "text/csv", "application/csv"))
+                },
+                enabled = !isImporting,
+            ) {
+                Text("Select CSV file")
+            }
+
+            if (isImporting) {
+                Spacer(modifier = Modifier.height(12.dp))
+                CircularProgressIndicator()
+            }
+
+            if (importResult != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+                ImportSummaryCard(importResult = importResult!!)
+            }
         }
     }
 }

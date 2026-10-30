@@ -11,6 +11,7 @@ Small budgeting tracker inspired by Monefy.
 - Current-month-first default transaction view
 - Home with expense donut chart by category and centered totals
 - Large bottom quick actions for expense (`−`) and income (`+`)
+- Home side-menu buttons open **Transactions** and **Restore**
 - Add / edit / delete transactions
 - Manual CSV restore screen (Monefy CSV import)
 - Duplicate-safe re-import (idempotent)
@@ -46,7 +47,7 @@ Small budgeting tracker inspired by Monefy.
 
 To restore your historical file:
 1. Copy `Monefy.Data.29-10-2026.csv` to the emulator/device storage.
-2. In app, open **Restore** tab.
+2. In app, from Home use the right side-menu button near Balance to open **Restore**.
 3. Tap **Select CSV file** and choose the file.
 
 ## Tests
@@ -54,7 +55,7 @@ To restore your historical file:
   - CSV parser coverage
 - Instrumented tests:
   - Room import idempotency
-  - Compose smoke test (bottom tabs render)
+  - Compose smoke test (core screens render)
 
 Suggested commands:
 - `./gradlew testDebugUnitTest`

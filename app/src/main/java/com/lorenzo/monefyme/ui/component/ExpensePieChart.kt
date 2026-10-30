@@ -24,18 +24,18 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Checkroom
 import androidx.compose.material.icons.outlined.DirectionsCar
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LocalBar
-import androidx.compose.material.icons.outlined.Medication
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.SelfImprovement
 import androidx.compose.material.icons.outlined.SportsSoccer
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Train
-import androidx.compose.material.icons.outlined.Wallet
 import com.lorenzo.monefyme.data.model.ExpenseSlice
 import com.lorenzo.monefyme.ui.util.centsToDisplay
 import kotlin.math.cos
@@ -95,18 +95,18 @@ fun ExpensePieChart(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(520.dp)
+            .height(390.dp)
             .drawBehind {
                 drawRect(backgroundColor)
             },
     ) {
-        val chartSize: Dp = 250.dp
-        val strokeWidth: Dp = 58.dp
+        val chartSize: Dp = 226.dp
+        val strokeWidth: Dp = 50.dp
         val density = LocalDensity.current
         val chartRadiusPx = with(density) { chartSize.toPx() / 2f }
         val ringCenterRadiusPx = with(density) { chartRadiusPx - strokeWidth.toPx() / 2f }
-        val lineLengthPx = with(density) { 66.dp.toPx() }
-        val labelDistancePx = with(density) { 125.dp.toPx() }
+        val lineLengthPx = with(density) { 52.dp.toPx() }
+        val labelDistancePx = with(density) { 110.dp.toPx() }
         val lineWidthPx = with(density) { 2.dp.toPx() }
 
         Canvas(
@@ -144,7 +144,7 @@ fun ExpensePieChart(
         }
 
         Text(
-            text = centsToDisplay(incomeCents),
+            text = "€${centsToDisplay(incomeCents)}",
             color = Color(0xFF39B87A),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
@@ -153,7 +153,7 @@ fun ExpensePieChart(
                 .offset(y = (-8).dp),
         )
         Text(
-            text = "-${centsToDisplay(expenseCents)}",
+            text = "-€${centsToDisplay(expenseCents)}",
             color = Color(0xFFDE6A75),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
@@ -215,10 +215,10 @@ private fun iconForCategory(categoryName: String): ImageVector {
         "clothes" -> Icons.Outlined.Checkroom
         "house", "housing", "home" -> Icons.Outlined.Home
         "sports" -> Icons.Outlined.SportsSoccer
-        "health" -> Icons.Outlined.Medication
+        "health" -> Icons.Outlined.FavoriteBorder
         "entertainment" -> Icons.Outlined.SportsEsports
         "communications" -> Icons.Outlined.Call
         "toiletry" -> Icons.Outlined.SelfImprovement
-        else -> Icons.Outlined.Wallet
+        else -> Icons.Outlined.AccountBalanceWallet
     }
 }
