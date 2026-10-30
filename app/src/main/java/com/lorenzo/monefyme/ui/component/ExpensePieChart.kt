@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -47,6 +48,7 @@ import com.lorenzo.monefyme.data.model.ExpenseSlice
 import com.lorenzo.monefyme.ui.util.centsToDisplay
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 @Composable
 fun ExpensePieChart(
@@ -64,6 +66,26 @@ fun ExpensePieChart(
     val incomeLabelColor = if (isMonthEmpty) Color(0xFF8F9A9D) else Color(0xFF39B87A)
     val expenseLabelColor = if (isMonthEmpty) Color(0xFF8F9A9D) else Color(0xFFDE6A75)
     val ringBaseColor = if (hasExpenseSlices) Color(0xFFD7ECE1) else Color(0xFFBFC8C3)
+    val slotFactors = remember {
+        listOf(
+            Pair(-0.88f, -0.82f),
+            Pair(-0.46f, -0.92f),
+            Pair(-0.15f, -0.95f),
+            Pair(0.15f, -0.95f),
+            Pair(0.46f, -0.92f),
+            Pair(0.88f, -0.82f),
+            Pair(0.95f, -0.25f),
+            Pair(0.95f, 0.25f),
+            Pair(0.88f, 0.82f),
+            Pair(0.46f, 0.92f),
+            Pair(0.15f, 0.95f),
+            Pair(-0.15f, 0.95f),
+            Pair(-0.46f, 0.92f),
+            Pair(-0.88f, 0.82f),
+            Pair(-0.95f, 0.25f),
+            Pair(-0.95f, -0.25f),
+        )
+    }
 
     val slicesWithMeta = remember(slices, hasExpenseSlices, totalExpense) {
         if (!hasExpenseSlices) {
@@ -85,6 +107,24 @@ fun ExpensePieChart(
             }
         }
     }
+    val iconCategories = remember(slicesWithMeta, slotFactors) {
+        val active = slicesWithMeta
+            .map { normalizedCategory(it.categoryName) }
+            .distinct()
+        val extras = knownCategoryOrder.filterNot { it in active }
+        (active + extras)
+            .take(slotFactors.size)
+            .map(::categoryVisualFor)
+    }
+    val iconPlacements = remember(iconCategories, slotFactors) {
+        iconCategories.mapIndexed { index, visual ->
+            IconPlacement(
+                visual = visual,
+                xFactor = slotFactors[index].first,
+                yFactor = slotFactors[index].second,
+            )
+        }
+    }
 
     BoxWithConstraints(
         modifier = modifier
@@ -96,25 +136,40 @@ fun ExpensePieChart(
     ) {
         val chartSize: Dp = 226.dp
         val strokeWidth: Dp = 50.dp
+        val iconSize = 34.dp
         val density = LocalDensity.current
         val chartRadiusPx = with(density) { chartSize.toPx() / 2f }
         val strokeWidthPx = with(density) { strokeWidth.toPx() }
         val ringCenterRadiusPx = chartRadiusPx - strokeWidthPx / 2f
         val ringOuterRadiusPx = ringCenterRadiusPx + strokeWidthPx / 2f
-        val iconSize = 34.dp
         val iconSizePx = with(density) { iconSize.toPx() }
-        val iconCenterRadiusPx = ringOuterRadiusPx + with(density) { 30.dp.toPx() }
+        val xLimitPx = with(density) { (maxWidth / 2f - (iconSize / 2f) - 4.dp).toPx() }
+        val yLimitPx = with(density) { (390.dp / 2f - (iconSize / 2f) - 4.dp).toPx() }
         val connectorStartRadiusPx = ringOuterRadiusPx + with(density) { 4.dp.toPx() }
-        val connectorEndRadiusPx = iconCenterRadiusPx - (iconSizePx / 2f) - with(density) { 4.dp.toPx() }
-        val lineWidthPx = with(density) { 2.2.dp.toPx() }
+        val lineWidthPx = with(density) { 1.2.dp.toPx() }
+        val iconBufferPx = (iconSizePx / 2f) + with(density) { 3.dp.toPx() }
 
         Canvas(
             modifier = Modifier
-                .size(chartSize)
-                .align(Alignment.Center),
+                .fillMaxSize(),
         ) {
+            val arcTopLeft = androidx.compose.ui.geometry.Offset(
+                x = center.x - chartRadiusPx,
+                y = center.y - chartRadiusPx,
+            )
+            val arcSize = androidx.compose.ui.geometry.Size(
+                width = chartRadiusPx * 2f,
+                height = chartRadiusPx * 2f,
+            )
+            val slotByCategory = iconPlacements.associate { placement ->
+                val x = center.x + placement.xFactor * xLimitPx
+                val y = center.y + placement.yFactor * yLimitPx
+                placement.visual.categoryKey to androidx.compose.ui.geometry.Offset(x, y)
+            }
+
             drawCircle(
                 color = ringBaseColor,
+                center = center,
                 radius = ringCenterRadiusPx,
                 style = Stroke(width = strokeWidthPx),
             )
@@ -126,14 +181,20 @@ fun ExpensePieChart(
                         startAngle = slice.startAngle,
                         sweepAngle = slice.sweepAngle,
                         useCenter = false,
+                        topLeft = arcTopLeft,
+                        size = arcSize,
                         style = Stroke(width = strokeWidthPx, cap = StrokeCap.Butt),
                     )
 
                     val angle = Math.toRadians(slice.midAngle.toDouble())
                     val startX = center.x + cos(angle).toFloat() * connectorStartRadiusPx
                     val startY = center.y + sin(angle).toFloat() * connectorStartRadiusPx
-                    val endX = center.x + cos(angle).toFloat() * connectorEndRadiusPx
-                    val endY = center.y + sin(angle).toFloat() * connectorEndRadiusPx
+                    val target = slotByCategory[normalizedCategory(slice.categoryName)] ?: return@forEach
+                    val dx = target.x - startX
+                    val dy = target.y - startY
+                    val length = sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
+                    val endX = target.x - (dx / length) * iconBufferPx
+                    val endY = target.y - (dy / length) * iconBufferPx
                     drawLine(
                         color = slice.color.copy(alpha = 0.9f),
                         start = androidx.compose.ui.geometry.Offset(startX, startY),
@@ -167,11 +228,9 @@ fun ExpensePieChart(
                 .offset(y = 21.dp),
         )
 
-        slicesWithMeta.forEach { slice ->
-            val angle = Math.toRadians(slice.midAngle.toDouble())
-            val labelX = (cos(angle) * iconCenterRadiusPx).toFloat()
-            val labelY = (sin(angle) * iconCenterRadiusPx).toFloat()
-            val icon = iconForCategory(slice.categoryName)
+        iconPlacements.forEach { placement ->
+            val labelX = placement.xFactor * xLimitPx
+            val labelY = placement.yFactor * yLimitPx
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -188,9 +247,9 @@ fun ExpensePieChart(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = icon,
-                        contentDescription = slice.categoryName,
-                        tint = slice.color,
+                        imageVector = placement.visual.icon,
+                        contentDescription = placement.visual.categoryKey,
+                        tint = placement.visual.color,
                         modifier = Modifier.size(26.dp),
                     )
                 }
@@ -207,6 +266,47 @@ private data class SliceMeta(
     val sweepAngle: Float,
     val midAngle: Float,
 )
+
+private data class CategoryVisual(
+    val categoryKey: String,
+    val icon: ImageVector,
+    val color: Color,
+)
+
+private data class IconPlacement(
+    val visual: CategoryVisual,
+    val xFactor: Float,
+    val yFactor: Float,
+)
+
+private val knownCategoryOrder = listOf(
+    "bills",
+    "breakfast out",
+    "caffe offerti",
+    "food",
+    "eating out",
+    "car",
+    "taxi",
+    "transport",
+    "clothes",
+    "house",
+    "sports",
+    "health",
+    "entertainment",
+    "communications",
+    "toiletry",
+    "gifts",
+    "pets",
+)
+
+private fun categoryVisualFor(categoryName: String): CategoryVisual {
+    val categoryKey = normalizedCategory(categoryName)
+    return CategoryVisual(
+        categoryKey = categoryKey,
+        icon = iconForCategory(categoryKey),
+        color = colorForCategory(categoryKey),
+    )
+}
 
 private fun iconForCategory(categoryName: String): ImageVector {
     return when (normalizedCategory(categoryName)) {
