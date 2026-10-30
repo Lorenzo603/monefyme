@@ -6,3 +6,5 @@
 **/build/
 *.iml
 /captures/
+
+set-env-variables.sh
