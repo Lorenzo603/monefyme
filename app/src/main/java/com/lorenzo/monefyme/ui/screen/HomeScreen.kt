@@ -20,8 +20,6 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ChevronLeft
-import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
@@ -42,7 +40,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -288,14 +285,6 @@ private fun MonthTicker(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onPreviousMonth) {
-            Icon(
-                imageVector = Icons.Outlined.ChevronLeft,
-                contentDescription = "Previous month",
-                tint = Color(0xFF8BCFAE),
-            )
-        }
-
         BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
@@ -356,17 +345,6 @@ private fun MonthTicker(
                 }
             }
         }
-
-        IconButton(
-            onClick = onNextMonth,
-            enabled = canMoveToNextMonth,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.ChevronRight,
-                contentDescription = "Next month",
-                tint = if (canMoveToNextMonth) Color(0xFF8BCFAE) else Color(0xFFCFE7DA),
-            )
-        }
     }
 }
 
@@ -380,7 +358,7 @@ private fun RoundActionButton(
 ) {
     Surface(
         onClick = onClick,
-        color = Color(0xFFFDFDFD),
+        color = borderColor,
         shadowElevation = 0.dp,
         modifier = Modifier
             .testTag(tag)
@@ -391,22 +369,26 @@ private fun RoundActionButton(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(9.dp)
-                .drawBehind {
-                    drawCircle(
-                        color = borderColor,
-                        radius = size.minDimension / 2f,
-                        style = Stroke(width = 9f),
-                    )
-                },
+                .padding(12.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = symbol,
-                color = symbolColor,
-                fontSize = 52.sp,
-                fontWeight = FontWeight.Bold,
-            )
+            Surface(
+                color = Color(0xFFFDFDFD),
+                shape = CircleShape,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    Text(
+                        text = symbol,
+                        color = symbolColor,
+                        fontSize = 52.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
         }
     }
 }

@@ -1,5 +1,8 @@
 package com.lorenzo.monefyme.ui.screen
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +18,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.BakeryDining
@@ -53,6 +55,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,13 +66,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.input.KeyboardType
 import com.lorenzo.monefyme.domain.TransactionType
 import com.lorenzo.monefyme.ui.util.formatDate
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
@@ -77,6 +81,7 @@ import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val headerDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault())
@@ -96,6 +101,18 @@ fun AddTransactionScreen(
     var firstOperand by rememberSaveable { mutableStateOf<BigDecimal?>(null) }
     var pendingOperator by rememberSaveable { mutableStateOf<Char?>(null) }
     var startNewNumber by rememberSaveable { mutableStateOf(true) }
+    var amountFlashError by remember { mutableStateOf(false) }
+    val amountDisplayColor by animateColorAsState(
+        targetValue = if (amountFlashError) Color(0xFFE53935) else Color.White,
+        animationSpec = tween(durationMillis = 100),
+        label = "amountFlash",
+    )
+    LaunchedEffect(amountFlashError) {
+        if (amountFlashError) {
+            delay(300L)
+            amountFlashError = false
+        }
+    }
     val screenTitle = if (type == TransactionType.EXPENSE) "New expense" else "New income"
 
     val persistTransaction: (String) -> Unit = { category ->
@@ -206,40 +223,25 @@ fun AddTransactionScreen(
                         .padding(end = 14.dp),
                     color = Color.White.copy(alpha = 0.9f),
                 )
-                TextField(
-                    value = amountText,
-                    onValueChange = { raw ->
-                        val filtered = raw.filter { it.isDigit() || it == '.' }
-                        amountText = when {
-                            filtered.isBlank() -> "0"
-                            filtered.count { it == '.' } > 1 -> amountText
-                            else -> filtered
+                Text(
+                    text = buildAnnotatedString {
+                        val dotIdx = amountText.indexOf('.')
+                        if (dotIdx == -1) {
+                            append(amountText)
+                        } else {
+                            append(amountText.substring(0, dotIdx))
+                            withStyle(SpanStyle(fontSize = 34.sp)) {
+                                append(amountText.substring(dotIdx))
+                            }
                         }
-                        startNewNumber = false
                     },
-                    singleLine = true,
-                    textStyle = TextStyle(
-                        color = Color.White,
-                        fontSize = 58.sp,
-                        fontWeight = FontWeight.Normal,
-                        textAlign = TextAlign.Center,
-                    ),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier
                         .weight(1f)
                         .testTag("amount_input"),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        disabledContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        disabledIndicatorColor = Color.Transparent,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        disabledTextColor = Color.White,
-                        cursorColor = Color.White,
-                    ),
+                    color = amountDisplayColor,
+                    fontSize = 58.sp,
+                    fontWeight = FontWeight.Normal,
+                    textAlign = TextAlign.Center,
                 )
                 IconButton(
                     onClick = {
@@ -344,7 +346,15 @@ fun AddTransactionScreen(
                         }
                     }
                 },
-                onChooseCategory = { showCategoryPicker = true },
+                onChooseCategory = {
+                    val normalizedAmount = amountText.removeSuffix(".").removePrefix("-")
+                    val amountValue = normalizedAmount.toBigDecimalOrNull()
+                    if (amountValue == null || amountValue.compareTo(BigDecimal.ZERO) == 0) {
+                        amountFlashError = true
+                    } else {
+                        showCategoryPicker = true
+                    }
+                },
             )
         }
     }
@@ -382,6 +392,7 @@ private fun CalculatorPad(
                             .weight(1f)
                             .height(74.dp),
                         shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.5.dp, Color(0xFF74C792)),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = Color(0xFFEAF8F2),
                             contentColor = Color(0xFF4B5558),
@@ -405,6 +416,7 @@ private fun CalculatorPad(
                 .padding(top = 8.dp, bottom = 8.dp)
                 .height(74.dp),
             shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.5.dp, Color(0xFF74C792)),
             colors = ButtonDefaults.outlinedButtonColors(
                 containerColor = Color(0xFFEAF8F2),
                 contentColor = Color(0xFF4B5558),
