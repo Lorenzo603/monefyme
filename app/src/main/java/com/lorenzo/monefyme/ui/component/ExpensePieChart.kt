@@ -10,24 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccountBalanceWallet
-import androidx.compose.material.icons.outlined.BakeryDining
-import androidx.compose.material.icons.outlined.Call
-import androidx.compose.material.icons.outlined.Checkroom
-import androidx.compose.material.icons.outlined.DirectionsCar
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.LocalActivity
-import androidx.compose.material.icons.outlined.LocalBar
-import androidx.compose.material.icons.outlined.LocalTaxi
-import androidx.compose.material.icons.outlined.Pets
-import androidx.compose.material.icons.outlined.Redeem
-import androidx.compose.material.icons.outlined.Restaurant
-import androidx.compose.material.icons.outlined.SelfImprovement
-import androidx.compose.material.icons.outlined.SportsEsports
-import androidx.compose.material.icons.outlined.SportsSoccer
-import androidx.compose.material.icons.outlined.Train
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -45,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.lorenzo.monefyme.data.model.ExpenseSlice
+import com.lorenzo.monefyme.ui.category.DefaultCategories
 import com.lorenzo.monefyme.ui.util.centsToDisplay
 import kotlin.math.abs
 import kotlin.math.cos
@@ -102,7 +85,7 @@ fun ExpensePieChart(
             SliceMeta(
                 categoryName = slice.categoryName,
                 amountCents = slice.totalCents,
-                color = colorForCategory(slice.categoryName),
+                color = DefaultCategories.findByName(slice.categoryName)?.color ?: DefaultCategories.fallbackColor,
                 startAngle = startAngle,
                 sweepAngle = sweep,
                 midAngle = mid,
@@ -177,7 +160,8 @@ fun ExpensePieChart(
             assignedSlots.none { it.slot.index == slot.index }
         }
         val extrasNeeded = (iconCount - activePlacements.size).coerceAtLeast(0)
-        val extraCategories = knownCategoryOrder
+        val extraCategories = DefaultCategories.all
+            .map { it.normalizedName }
             .filterNot { it in activeKeys }
             .take(extrasNeeded)
         val extraPlacements = freeSlots
@@ -355,26 +339,6 @@ private data class LineSegment(
     val y2: Float,
 )
 
-private val knownCategoryOrder = listOf(
-    "bills",
-    "breakfast out",
-    "caffe offerti",
-    "food",
-    "eating out",
-    "car",
-    "taxi",
-    "transport",
-    "clothes",
-    "house",
-    "sports",
-    "health",
-    "entertainment",
-    "communications",
-    "toiletry",
-    "gifts",
-    "pets",
-)
-
 private fun desiredIconCount(activeCount: Int): Int {
     return 14
 }
@@ -526,55 +490,12 @@ private fun onSegment(
 
 private fun categoryVisualFor(categoryName: String): CategoryVisual {
     val categoryKey = normalizedCategory(categoryName)
+    val def = DefaultCategories.findByName(categoryKey)
     return CategoryVisual(
         categoryKey = categoryKey,
-        icon = iconForCategory(categoryKey),
-        color = colorForCategory(categoryKey),
+        icon = def?.icon ?: DefaultCategories.fallbackIcon,
+        color = def?.color ?: DefaultCategories.fallbackColor,
     )
-}
-
-private fun iconForCategory(categoryName: String): ImageVector {
-    return when (normalizedCategory(categoryName)) {
-        "bills" -> Icons.Outlined.LocalActivity
-        "breakfast out", "caffe offerti" -> Icons.Outlined.BakeryDining
-        "food" -> Icons.Outlined.Restaurant
-        "eating out" -> Icons.Outlined.LocalBar
-        "car" -> Icons.Outlined.DirectionsCar
-        "taxi" -> Icons.Outlined.LocalTaxi
-        "transport" -> Icons.Outlined.Train
-        "clothes" -> Icons.Outlined.Checkroom
-        "house", "housing", "home" -> Icons.Outlined.Home
-        "sports" -> Icons.Outlined.SportsSoccer
-        "health" -> Icons.Outlined.FavoriteBorder
-        "entertainment" -> Icons.Outlined.SportsEsports
-        "communications" -> Icons.Outlined.Call
-        "toiletry" -> Icons.Outlined.SelfImprovement
-        "gifts" -> Icons.Outlined.Redeem
-        "pets" -> Icons.Outlined.Pets
-        else -> Icons.Outlined.AccountBalanceWallet
-    }
-}
-
-private fun colorForCategory(categoryName: String): Color {
-    return when (normalizedCategory(categoryName)) {
-        "bills" -> Color(0xFFC49B00)
-        "breakfast out", "caffe offerti" -> Color(0xFF99631E)
-        "car" -> Color(0xFF7788A3)
-        "clothes" -> Color(0xFFA665CA)
-        "communications" -> Color(0xFFAFA0BE)
-        "eating out" -> Color(0xFF7EB7A4)
-        "entertainment" -> Color(0xFFC28B47)
-        "food" -> Color(0xFFDE6CA5)
-        "gifts" -> Color(0xFFB5A8B8)
-        "health" -> Color(0xFFD95A5A)
-        "house", "housing", "home" -> Color(0xFF6EA9E6)
-        "pets" -> Color(0xFF67B68C)
-        "sports" -> Color(0xFF6AB8B1)
-        "taxi" -> Color(0xFFC78A00)
-        "toiletry" -> Color(0xFF5E7EA5)
-        "transport" -> Color(0xFFDF6E75)
-        else -> Color(0xFF8F9A9D)
-    }
 }
 
 private fun normalizedCategory(categoryName: String): String {
