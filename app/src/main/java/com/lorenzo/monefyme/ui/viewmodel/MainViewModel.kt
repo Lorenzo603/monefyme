@@ -46,11 +46,26 @@ class MainViewModel(
     val message: StateFlow<String?> = _message.asStateFlow()
 
     fun previousMonth() {
-        _selectedMonth.value = _selectedMonth.value.minusMonths(1)
+        selectMonth(_selectedMonth.value.minusMonths(1))
     }
 
     fun nextMonth() {
-        _selectedMonth.value = _selectedMonth.value.plusMonths(1)
+        selectMonth(_selectedMonth.value.plusMonths(1))
+    }
+
+    fun selectMonth(month: YearMonth) {
+        val currentMonth = YearMonth.now()
+        if (!month.isAfter(currentMonth)) {
+            _selectedMonth.value = month
+        }
+    }
+
+    fun observeMonthTransactions(month: YearMonth): kotlinx.coroutines.flow.Flow<List<TransactionListItem>> {
+        return repository.observeMonthTransactions(month)
+    }
+
+    fun observeMonthExpenseSlices(month: YearMonth): kotlinx.coroutines.flow.Flow<List<ExpenseSlice>> {
+        return repository.observeMonthExpenseSlices(month)
     }
 
     suspend fun saveTransaction(

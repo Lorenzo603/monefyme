@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -12,6 +13,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChevronLeft
@@ -25,8 +28,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -44,8 +49,16 @@ import com.lorenzo.monefyme.ui.component.ExpensePieChart
 import com.lorenzo.monefyme.ui.util.centsToDisplay
 import com.lorenzo.monefyme.ui.util.formatMonth
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
+import java.time.YearMonth
+import java.time.temporal.ChronoUnit
 import kotlin.math.abs
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import androidx.compose.runtime.snapshotFlow
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     viewModel: MainViewModel,
@@ -54,10 +67,43 @@ fun HomeScreen(
     onAddTransaction: (TransactionType) -> Unit,
 ) {
     val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
+    val currentMonth = remember { YearMonth.now() }
+    val anchorPage = remember { 1_000_000 }
+    val pageCount = remember { anchorPage + 1 }
+    val monthForPage: (Int) -> YearMonth = { page ->
+        currentMonth.minusMonths((anchorPage - page).toLong())
+    }
+    val pageForMonth: (YearMonth) -> Int = { targetMonth ->
+        val diff = ChronoUnit.MONTHS.between(targetMonth, currentMonth)
+            .coerceAtLeast(0L)
+            .toInt()
+        (anchorPage - diff).coerceAtLeast(0)
+    }
+    val pagerState = rememberPagerState(
+        initialPage = pageForMonth(month),
+        pageCount = { pageCount },
+    )
+
+    LaunchedEffect(pagerState, currentMonth, anchorPage) {
+        snapshotFlow { pagerState.settledPage }
+            .map(monthForPage)
+            .distinctUntilChanged()
+            .collect { settledMonth ->
+                viewModel.selectMonth(settledMonth)
+            }
+    }
+
+    LaunchedEffect(month) {
+        val targetPage = pageForMonth(month)
+        if (!pagerState.isScrollInProgress && pagerState.currentPage != targetPage) {
+            pagerState.animateScrollToPage(targetPage)
+        }
+    }
+
     val previousMonthLabel = formatMonth(month.minusMonths(1)).substringBefore(' ')
     val currentMonthLabel = formatMonth(month).substringBefore(' ')
+    val canMoveToNextMonth = month.isBefore(currentMonth)
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
-    val expenseSlices by viewModel.expenseSlices.collectAsStateWithLifecycle()
 
     val totalExpense = transactions
         .filter { it.transactionType == TransactionType.EXPENSE }
@@ -117,10 +163,14 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 10.dp, start = 8.dp, end = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .clickable(onClick = viewModel::previousMonth),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 IconButton(onClick = viewModel::previousMonth) {
                     Icon(
                         imageVector = Icons.Outlined.ChevronLeft,
@@ -134,29 +184,58 @@ fun HomeScreen(
                     style = MaterialTheme.typography.titleLarge,
                 )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .clickable(
+                        enabled = canMoveToNextMonth,
+                        onClick = viewModel::nextMonth,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
                     text = currentMonthLabel,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF66C290),
+                    color = if (canMoveToNextMonth) Color(0xFF66C290) else Color(0xFFA8DABD),
                 )
-                IconButton(onClick = viewModel::nextMonth) {
+                IconButton(
+                    onClick = viewModel::nextMonth,
+                    enabled = canMoveToNextMonth,
+                ) {
                     Icon(
                         imageVector = Icons.Outlined.ChevronRight,
                         contentDescription = "Next month",
-                        tint = Color(0xFF8BCFAE),
+                        tint = if (canMoveToNextMonth) Color(0xFF8BCFAE) else Color(0xFFCFE7DA),
                     )
                 }
             }
         }
 
-        ExpensePieChart(
-            slices = expenseSlices,
-            incomeCents = totalIncome,
-            expenseCents = totalExpense,
-            modifier = Modifier.padding(top = 8.dp),
-        )
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("month_pager"),
+            beyondViewportPageCount = 1,
+        ) {
+            val pageMonth = monthForPage(it)
+            val pageTransactions by viewModel.observeMonthTransactions(pageMonth)
+                .collectAsStateWithLifecycle(initialValue = emptyList())
+            val pageExpenseSlices by viewModel.observeMonthExpenseSlices(pageMonth)
+                .collectAsStateWithLifecycle(initialValue = emptyList())
+            val pageTotalExpense = pageTransactions
+                .filter { transaction -> transaction.transactionType == TransactionType.EXPENSE }
+                .sumOf { transaction -> transaction.amountCents }
+            val pageTotalIncome = pageTransactions
+                .filter { transaction -> transaction.transactionType == TransactionType.INCOME }
+                .sumOf { transaction -> transaction.amountCents }
+            ExpensePieChart(
+                slices = pageExpenseSlices,
+                incomeCents = pageTotalIncome,
+                expenseCents = pageTotalExpense,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
 
         Spacer(modifier = Modifier.weight(1f))
 
