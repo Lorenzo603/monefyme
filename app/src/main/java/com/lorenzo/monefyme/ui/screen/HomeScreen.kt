@@ -27,9 +27,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -44,7 +41,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lorenzo.monefyme.domain.TransactionType
 import com.lorenzo.monefyme.ui.component.ExpensePieChart
-import com.lorenzo.monefyme.ui.component.TransactionEditorDialog
 import com.lorenzo.monefyme.ui.util.centsToDisplay
 import com.lorenzo.monefyme.ui.util.formatMonth
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
@@ -55,15 +51,13 @@ fun HomeScreen(
     viewModel: MainViewModel,
     onOpenTransactions: () -> Unit,
     onOpenRestore: () -> Unit,
+    onAddTransaction: (TransactionType) -> Unit,
 ) {
     val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val previousMonthLabel = formatMonth(month.minusMonths(1)).substringBefore(' ')
     val currentMonthLabel = formatMonth(month).substringBefore(' ')
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
     val expenseSlices by viewModel.expenseSlices.collectAsStateWithLifecycle()
-    var editorVisible by rememberSaveable { mutableStateOf(false) }
-    var newTransactionType by rememberSaveable { mutableStateOf(TransactionType.EXPENSE) }
 
     val totalExpense = transactions
         .filter { it.transactionType == TransactionType.EXPENSE }
@@ -222,8 +216,7 @@ fun HomeScreen(
                 symbolColor = Color(0xFFF07F86),
                 tag = "add_expense_button",
                 onClick = {
-                    newTransactionType = TransactionType.EXPENSE
-                    editorVisible = true
+                    onAddTransaction(TransactionType.EXPENSE)
                 },
             )
             RoundActionButton(
@@ -232,22 +225,10 @@ fun HomeScreen(
                 symbolColor = Color(0xFF64D09B),
                 tag = "add_income_button",
                 onClick = {
-                    newTransactionType = TransactionType.INCOME
-                    editorVisible = true
+                    onAddTransaction(TransactionType.INCOME)
                 },
             )
         }
-    }
-
-    if (editorVisible) {
-        TransactionEditorDialog(
-            existing = null,
-            categories = categories,
-            initialType = newTransactionType,
-            onDismiss = { editorVisible = false },
-            onSave = viewModel::saveTransaction,
-            onDelete = viewModel::deleteTransaction,
-        )
     }
 }
 

@@ -12,6 +12,11 @@ Small budgeting tracker inspired by Monefy.
 - Home with expense donut chart by category and centered totals
 - Large bottom quick actions for expense (`−`) and income (`+`)
 - Home side-menu buttons open **Transactions** and **Restore**
+- Monefy-like add expense/income flow with:
+  - full-screen amount keypad
+  - note field
+  - **CHOOSE CATEGORY** action
+  - predefined category picker grid
 - Add / edit / delete transactions
 - Manual CSV restore screen (Monefy CSV import)
 - Duplicate-safe re-import (idempotent)
