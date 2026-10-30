@@ -1,11 +1,13 @@
 package com.lorenzo.monefyme.ui.screen
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -28,19 +31,25 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -54,11 +63,9 @@ import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
-import androidx.compose.runtime.snapshotFlow
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     viewModel: MainViewModel,
@@ -100,11 +107,8 @@ fun HomeScreen(
         }
     }
 
-    val previousMonthLabel = formatMonth(month.minusMonths(1)).substringBefore(' ')
-    val currentMonthLabel = formatMonth(month).substringBefore(' ')
     val canMoveToNextMonth = month.isBefore(currentMonth)
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
-
     val totalExpense = transactions
         .filter { it.transactionType == TransactionType.EXPENSE }
         .sumOf { it.amountCents }
@@ -159,57 +163,15 @@ fun HomeScreen(
             }
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 10.dp, start = 8.dp, end = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(
-                modifier = Modifier
-                    .clickable(onClick = viewModel::previousMonth),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = viewModel::previousMonth) {
-                    Icon(
-                        imageVector = Icons.Outlined.ChevronLeft,
-                        contentDescription = "Previous month",
-                        tint = Color(0xFF8BCFAE),
-                    )
-                }
-                Text(
-                    text = previousMonthLabel,
-                    color = Color(0xFFA8DABD),
-                    style = MaterialTheme.typography.titleLarge,
-                )
-            }
-            Row(
-                modifier = Modifier
-                    .clickable(
-                        enabled = canMoveToNextMonth,
-                        onClick = viewModel::nextMonth,
-                    ),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = currentMonthLabel,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (canMoveToNextMonth) Color(0xFF66C290) else Color(0xFFA8DABD),
-                )
-                IconButton(
-                    onClick = viewModel::nextMonth,
-                    enabled = canMoveToNextMonth,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.ChevronRight,
-                        contentDescription = "Next month",
-                        tint = if (canMoveToNextMonth) Color(0xFF8BCFAE) else Color(0xFFCFE7DA),
-                    )
-                }
-            }
-        }
+        MonthTicker(
+            pagerState = pagerState,
+            pageCount = pageCount,
+            monthForPage = monthForPage,
+            canMoveToNextMonth = canMoveToNextMonth,
+            onPreviousMonth = viewModel::previousMonth,
+            onNextMonth = viewModel::nextMonth,
+            modifier = Modifier.padding(top = 10.dp, start = 8.dp, end = 8.dp),
+        )
 
         HorizontalPager(
             state = pagerState,
@@ -217,8 +179,8 @@ fun HomeScreen(
                 .fillMaxWidth()
                 .testTag("month_pager"),
             beyondViewportPageCount = 1,
-        ) {
-            val pageMonth = monthForPage(it)
+        ) { page ->
+            val pageMonth = monthForPage(page)
             val pageTransactions by viewModel.observeMonthTransactions(pageMonth)
                 .collectAsStateWithLifecycle(initialValue = emptyList())
             val pageExpenseSlices by viewModel.observeMonthExpenseSlices(pageMonth)
@@ -306,6 +268,102 @@ fun HomeScreen(
                 onClick = {
                     onAddTransaction(TransactionType.INCOME)
                 },
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MonthTicker(
+    pagerState: PagerState,
+    pageCount: Int,
+    monthForPage: (Int) -> YearMonth,
+    canMoveToNextMonth: Boolean,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onPreviousMonth) {
+            Icon(
+                imageVector = Icons.Outlined.ChevronLeft,
+                contentDescription = "Previous month",
+                tint = Color(0xFF8BCFAE),
+            )
+        }
+
+        BoxWithConstraints(
+            modifier = Modifier
+                .weight(1f)
+                .height(40.dp)
+                .clipToBounds()
+                .testTag("month_ticker"),
+        ) {
+            val density = LocalDensity.current
+            val widthPx = with(density) { maxWidth.toPx() }
+            val stepPx = widthPx * 0.52f
+            val sideWindow = 96.dp
+            val scrollRate = 0.78f
+            val progress = pagerState.currentPage + (pagerState.currentPageOffsetFraction * scrollRate)
+            val visiblePages = listOf(
+                pagerState.currentPage - 1,
+                pagerState.currentPage,
+                pagerState.currentPage + 1,
+            ).filter { it in 0 until pageCount }
+
+            visiblePages.forEach { page ->
+                val distance = page - progress
+                val isCentered = abs(distance) < 0.35f
+                val monthLabel = formatMonth(monthForPage(page)).substringBefore(' ')
+                val isLeftLabel = distance < 0f
+                val canClick = if (isLeftLabel) true else canMoveToNextMonth
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .graphicsLayer {
+                            translationX = distance * stepPx
+                        }
+                        .width(if (isCentered) 180.dp else sideWindow)
+                        .clickable(
+                            enabled = !isCentered && canClick,
+                            onClick = if (isLeftLabel) onPreviousMonth else onNextMonth,
+                        ),
+                    contentAlignment = when {
+                        isCentered -> Alignment.Center
+                        isLeftLabel -> Alignment.CenterEnd
+                        else -> Alignment.CenterStart
+                    },
+                ) {
+                    Text(
+                        text = monthLabel,
+                        color = if (isCentered) Color(0xFF66C290) else Color(0xFFA8DABD),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = if (isCentered) FontWeight.SemiBold else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Clip,
+                        textAlign = when {
+                            isCentered -> TextAlign.Center
+                            isLeftLabel -> TextAlign.End
+                            else -> TextAlign.Start
+                        },
+                    )
+                }
+            }
+        }
+
+        IconButton(
+            onClick = onNextMonth,
+            enabled = canMoveToNextMonth,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.ChevronRight,
+                contentDescription = "Next month",
+                tint = if (canMoveToNextMonth) Color(0xFF8BCFAE) else Color(0xFFCFE7DA),
             )
         }
     }
