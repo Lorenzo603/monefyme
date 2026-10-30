@@ -70,22 +70,24 @@ fun ExpensePieChart(
     val ringBaseColor = if (hasExpenseSlices) Color(0xFFD7ECE1) else Color(0xFFBFC8C3)
     val slotFactors = remember {
         listOf(
-            Pair(-0.88f, -0.82f),
-            Pair(-0.46f, -0.92f),
-            Pair(-0.15f, -0.95f),
-            Pair(0.15f, -0.95f),
-            Pair(0.46f, -0.92f),
-            Pair(0.88f, -0.82f),
-            Pair(0.95f, -0.25f),
-            Pair(0.95f, 0.25f),
-            Pair(0.88f, 0.82f),
-            Pair(0.46f, 0.92f),
-            Pair(0.15f, 0.95f),
-            Pair(-0.15f, 0.95f),
-            Pair(-0.46f, 0.92f),
-            Pair(-0.88f, 0.82f),
-            Pair(-0.95f, 0.25f),
-            Pair(-0.95f, -0.25f),
+            // top row, left → right
+            Pair(-1.0f, -1.0f),
+            Pair(-0.333f, -1.0f),
+            Pair(0.333f, -1.0f),
+            Pair(1.0f, -1.0f),
+            // right column, top → bottom (middle 3)
+            Pair(1.0f, -0.5f),
+            Pair(1.0f, 0.0f),
+            Pair(1.0f, 0.5f),
+            // bottom row, right → left
+            Pair(1.0f, 1.0f),
+            Pair(0.333f, 1.0f),
+            Pair(-0.333f, 1.0f),
+            Pair(-1.0f, 1.0f),
+            // left column, bottom → top (middle 3)
+            Pair(-1.0f, 0.5f),
+            Pair(-1.0f, 0.0f),
+            Pair(-1.0f, -0.5f),
         )
     }
 
@@ -295,7 +297,7 @@ fun ExpensePieChart(
                         imageVector = placement.visual.icon,
                         contentDescription = placement.visual.categoryKey,
                         tint = placement.visual.color,
-                        modifier = Modifier.size(iconSize - 8.dp),
+                        modifier = Modifier.size(iconSize - 6.dp),
                     )
                 }
             }
@@ -374,22 +376,11 @@ private val knownCategoryOrder = listOf(
 )
 
 private fun desiredIconCount(activeCount: Int): Int {
-    return when {
-        activeCount <= 3 -> 8
-        activeCount <= 5 -> 10
-        activeCount <= 8 -> 12
-        activeCount <= 11 -> 14
-        else -> 16
-    }
+    return 14
 }
 
 private fun iconSizeForActiveCount(activeCount: Int): Dp {
-    return when {
-        activeCount <= 3 -> 42.dp
-        activeCount <= 6 -> 38.dp
-        activeCount <= 9 -> 35.dp
-        else -> 32.dp
-    }
+    return 40.dp
 }
 
 private fun selectVisibleSlotFactors(
