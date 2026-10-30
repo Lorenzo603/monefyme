@@ -222,14 +222,14 @@ fun HomeScreen(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 10.dp)
-                    .height(74.dp),
+                    .height(66.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
                         text = "Balance ${if (balance < 0) "-" else ""}€${centsToDisplay(abs(balance))}",
                         color = Color.White,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Normal,
                     )
                 }
             }
@@ -342,8 +342,9 @@ private fun MonthTicker(
                     Text(
                         text = monthLabel,
                         color = if (isCentered) Color(0xFF66C290) else Color(0xFFA8DABD),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = if (isCentered) FontWeight.SemiBold else FontWeight.Normal,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Normal,
+                        fontSize = 16.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Clip,
                         textAlign = when {
