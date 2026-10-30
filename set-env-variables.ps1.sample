@@ -1,0 +1,4 @@
+$env:ANDROID_SDK_ROOT = "$env:USERPROFILE\AppData\Local\Android\Sdk"
+$env:ANDROID_HOME = $env:ANDROID_SDK_ROOT
+
+Write-Host "ANDROID_HOME set to: $env:ANDROID_HOME"
