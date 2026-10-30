@@ -20,26 +20,10 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.BakeryDining
 import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.Call
-import androidx.compose.material.icons.outlined.Category
-import androidx.compose.material.icons.outlined.Checkroom
-import androidx.compose.material.icons.outlined.CleanHands
-import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.Diversity3
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.LocalActivity
 import androidx.compose.material.icons.outlined.LocalAtm
-import androidx.compose.material.icons.outlined.LocalBar
-import androidx.compose.material.icons.outlined.LocalDining
-import androidx.compose.material.icons.outlined.LocalTaxi
-import androidx.compose.material.icons.outlined.Pets
-import androidx.compose.material.icons.outlined.Redeem
-import androidx.compose.material.icons.outlined.SportsSoccer
 import androidx.compose.material.icons.outlined.SwapHoriz
-import androidx.compose.material.icons.outlined.Train
 import androidx.compose.material.icons.outlined.WorkOutline
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
@@ -65,7 +49,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -75,6 +58,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lorenzo.monefyme.domain.TransactionType
+import com.lorenzo.monefyme.ui.category.DefaultCategories
 import com.lorenzo.monefyme.ui.util.formatDate
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
 import java.math.BigDecimal
@@ -436,29 +420,6 @@ private fun CategoryPicker(
     onCategorySelected: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val categories = remember {
-        listOf(
-            PredefinedCategory("Bills", Icons.Outlined.LocalActivity, Color(0xFFC49B00)),
-            PredefinedCategory("Breakfast out", Icons.Outlined.LocalBar, Color(0xFF99631E)),
-            PredefinedCategory("Caffe offerti", Icons.Outlined.BakeryDining, Color(0xFFC49B00)),
-            PredefinedCategory("Car", Icons.Outlined.DirectionsCar, Color(0xFF7788A3)),
-            PredefinedCategory("Clothes", Icons.Outlined.Checkroom, Color(0xFFA665CA)),
-            PredefinedCategory("Communications", Icons.Outlined.Call, Color(0xFFAFA0BE)),
-            PredefinedCategory("Eating out", Icons.Outlined.LocalDining, Color(0xFF7EB7A4)),
-            PredefinedCategory("Entertainment", Icons.Outlined.LocalBar, Color(0xFFC28B47)),
-            PredefinedCategory("Food", Icons.Outlined.Category, Color(0xFFDE6CA5)),
-            PredefinedCategory("Gifts", Icons.Outlined.Redeem, Color(0xFFB5A8B8)),
-            PredefinedCategory("Health", Icons.Outlined.FavoriteBorder, Color(0xFFD95A5A)),
-            PredefinedCategory("House", Icons.Outlined.Home, Color(0xFF6EA9E6)),
-            PredefinedCategory("Pets", Icons.Outlined.Pets, Color(0xFF67B68C)),
-            PredefinedCategory("Sports", Icons.Outlined.SportsSoccer, Color(0xFF6AB8B1)),
-            PredefinedCategory("Taxi", Icons.Outlined.LocalTaxi, Color(0xFFC78A00)),
-            PredefinedCategory("Toiletry", Icons.Outlined.CleanHands, Color(0xFF5E7EA5)),
-            PredefinedCategory("Transport", Icons.Outlined.Train, Color(0xFFDF6E75)),
-            PredefinedCategory("ADD", Icons.Outlined.Diversity3, Color(0xFF8F9A9D), selectable = false),
-        )
-    }
-
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
         modifier = modifier
@@ -468,29 +429,22 @@ private fun CategoryPicker(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(categories) { category ->
+        items(DefaultCategories.all) { category ->
             OutlinedButton(
-                onClick = {
-                    if (category.selectable) {
-                        onCategorySelected(category.name)
-                    }
-                },
+                onClick = { onCategorySelected(category.displayName) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(102.dp),
-                enabled = category.selectable,
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
                     containerColor = Color(0xFFEAF8F2),
                     contentColor = category.color,
-                    disabledContainerColor = Color(0xFFEAF8F2),
-                    disabledContentColor = category.color,
                 ),
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(category.icon, contentDescription = null, modifier = Modifier.size(28.dp))
                     Text(
-                        text = category.name,
+                        text = category.displayName,
                         modifier = Modifier.padding(top = 6.dp),
                         fontSize = 16.sp,
                         textAlign = TextAlign.Center,
@@ -499,15 +453,37 @@ private fun CategoryPicker(
                 }
             }
         }
+        item {
+            OutlinedButton(
+                onClick = {},
+                enabled = false,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(102.dp),
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    disabledContainerColor = Color(0xFFEAF8F2),
+                    disabledContentColor = DefaultCategories.fallbackColor,
+                ),
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Outlined.Diversity3,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                    )
+                    Text(
+                        text = "ADD",
+                        modifier = Modifier.padding(top = 6.dp),
+                        fontSize = 16.sp,
+                        textAlign = TextAlign.Center,
+                        color = DefaultCategories.fallbackColor,
+                    )
+                }
+            }
+        }
     }
 }
-
-private data class PredefinedCategory(
-    val name: String,
-    val icon: ImageVector,
-    val color: Color,
-    val selectable: Boolean = true,
-)
 
 private fun applyOperator(left: BigDecimal, right: BigDecimal, op: Char): BigDecimal {
     return when (op) {
