@@ -1,12 +1,14 @@
 package com.lorenzo.monefyme.ui.component
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,7 +41,6 @@ import androidx.compose.material.icons.outlined.Train
 import com.lorenzo.monefyme.data.model.ExpenseSlice
 import com.lorenzo.monefyme.ui.util.centsToDisplay
 import kotlin.math.cos
-import kotlin.math.roundToInt
 import kotlin.math.sin
 
 @Composable
@@ -104,10 +105,15 @@ fun ExpensePieChart(
         val strokeWidth: Dp = 50.dp
         val density = LocalDensity.current
         val chartRadiusPx = with(density) { chartSize.toPx() / 2f }
-        val ringCenterRadiusPx = with(density) { chartRadiusPx - strokeWidth.toPx() / 2f }
-        val lineLengthPx = with(density) { 52.dp.toPx() }
-        val labelDistancePx = with(density) { 110.dp.toPx() }
-        val lineWidthPx = with(density) { 2.dp.toPx() }
+        val strokeWidthPx = with(density) { strokeWidth.toPx() }
+        val ringCenterRadiusPx = chartRadiusPx - strokeWidthPx / 2f
+        val ringOuterRadiusPx = ringCenterRadiusPx + strokeWidthPx / 2f
+        val iconSize = 34.dp
+        val iconSizePx = with(density) { iconSize.toPx() }
+        val iconCenterRadiusPx = ringOuterRadiusPx + with(density) { 30.dp.toPx() }
+        val connectorStartRadiusPx = ringOuterRadiusPx + with(density) { 4.dp.toPx() }
+        val connectorEndRadiusPx = iconCenterRadiusPx - (iconSizePx / 2f) - with(density) { 4.dp.toPx() }
+        val lineWidthPx = with(density) { 2.2.dp.toPx() }
 
         Canvas(
             modifier = Modifier
@@ -117,7 +123,7 @@ fun ExpensePieChart(
             drawCircle(
                 color = Color(0xFFD7ECE1),
                 radius = ringCenterRadiusPx,
-                style = Stroke(width = strokeWidth.toPx()),
+                style = Stroke(width = strokeWidthPx),
             )
 
             slicesWithMeta.forEach { slice ->
@@ -126,14 +132,14 @@ fun ExpensePieChart(
                     startAngle = slice.startAngle,
                     sweepAngle = slice.sweepAngle,
                     useCenter = false,
-                    style = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Butt),
+                    style = Stroke(width = strokeWidthPx, cap = StrokeCap.Butt),
                 )
 
                 val angle = Math.toRadians(slice.midAngle.toDouble())
-                val startX = center.x + cos(angle).toFloat() * ringCenterRadiusPx
-                val startY = center.y + sin(angle).toFloat() * ringCenterRadiusPx
-                val endX = center.x + cos(angle).toFloat() * (ringCenterRadiusPx + lineLengthPx)
-                val endY = center.y + sin(angle).toFloat() * (ringCenterRadiusPx + lineLengthPx)
+                val startX = center.x + cos(angle).toFloat() * connectorStartRadiusPx
+                val startY = center.y + sin(angle).toFloat() * connectorStartRadiusPx
+                val endX = center.x + cos(angle).toFloat() * connectorEndRadiusPx
+                val endY = center.y + sin(angle).toFloat() * connectorEndRadiusPx
                 drawLine(
                     color = slice.color.copy(alpha = 0.9f),
                     start = androidx.compose.ui.geometry.Offset(startX, startY),
@@ -146,27 +152,26 @@ fun ExpensePieChart(
         Text(
             text = "€${centsToDisplay(incomeCents)}",
             color = Color(0xFF39B87A),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
             modifier = Modifier
                 .align(Alignment.Center)
-                .offset(y = (-8).dp),
+                .offset(y = (-7).dp),
         )
         Text(
             text = "-€${centsToDisplay(expenseCents)}",
             color = Color(0xFFDE6A75),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
             modifier = Modifier
                 .align(Alignment.Center)
-                .offset(y = 24.dp),
+                .offset(y = 21.dp),
         )
 
         slicesWithMeta.forEach { slice ->
             val angle = Math.toRadians(slice.midAngle.toDouble())
-            val labelX = (cos(angle) * labelDistancePx).toFloat()
-            val labelY = (sin(angle) * labelDistancePx).toFloat()
-            val percentage = ((slice.amountCents.toDouble() / totalExpense.toDouble()) * 100).roundToInt()
+            val labelX = (cos(angle) * iconCenterRadiusPx).toFloat()
+            val labelY = (sin(angle) * iconCenterRadiusPx).toFloat()
             val icon = iconForCategory(slice.categoryName)
             Box(
                 modifier = Modifier
@@ -177,19 +182,17 @@ fun ExpensePieChart(
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                Box(contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .size(iconSize)
+                        .background(color = backgroundColor, shape = CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = slice.categoryName,
                         tint = slice.color,
-                        modifier = Modifier.size(28.dp),
-                    )
-                    Text(
-                        text = "$percentage%",
-                        color = Color(0xFF5D5D5D),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.offset(y = 26.dp),
+                        modifier = Modifier.size(26.dp),
                     )
                 }
             }

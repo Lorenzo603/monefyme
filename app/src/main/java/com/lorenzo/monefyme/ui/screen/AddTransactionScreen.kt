@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.BakeryDining
@@ -64,8 +65,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.input.KeyboardType
 import com.lorenzo.monefyme.domain.TransactionType
 import com.lorenzo.monefyme.ui.util.formatDate
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
@@ -202,13 +206,40 @@ fun AddTransactionScreen(
                         .padding(end = 14.dp),
                     color = Color.White.copy(alpha = 0.9f),
                 )
-                Text(
-                    text = amountText,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                    color = Color.White,
-                    fontSize = 58.sp,
-                    fontWeight = FontWeight.Normal,
+                TextField(
+                    value = amountText,
+                    onValueChange = { raw ->
+                        val filtered = raw.filter { it.isDigit() || it == '.' }
+                        amountText = when {
+                            filtered.isBlank() -> "0"
+                            filtered.count { it == '.' } > 1 -> amountText
+                            else -> filtered
+                        }
+                        startNewNumber = false
+                    },
+                    singleLine = true,
+                    textStyle = TextStyle(
+                        color = Color.White,
+                        fontSize = 58.sp,
+                        fontWeight = FontWeight.Normal,
+                        textAlign = TextAlign.Center,
+                    ),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("amount_input"),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        disabledTextColor = Color.White,
+                        cursorColor = Color.White,
+                    ),
                 )
                 IconButton(
                     onClick = {
