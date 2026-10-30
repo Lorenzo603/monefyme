@@ -9,7 +9,8 @@ Small budgeting tracker inspired by Monefy.
   - income (`INCOME`, shown as positive in UI)
 - Room local persistence for categories and transactions
 - Current-month-first default transaction view
-- Monthly expense-only pie chart by category
+- Home with expense donut chart by category and centered totals
+- Large bottom quick actions for expense (`−`) and income (`+`)
 - Add / edit / delete transactions
 - Manual CSV restore screen (Monefy CSV import)
 - Duplicate-safe re-import (idempotent)
@@ -58,3 +59,11 @@ To restore your historical file:
 Suggested commands:
 - `./gradlew testDebugUnitTest`
 - `./gradlew connectedDebugAndroidTest` (requires running emulator)
+
+## Run Emulator
+- `android emulator start medium_phone`
+- `android emulator start --cold --headless medium_phone` headless for tests
+- `android emulator stop`
+
+## Build and Run App
+- `android run :app`

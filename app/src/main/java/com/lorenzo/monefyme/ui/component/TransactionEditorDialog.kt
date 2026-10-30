@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 fun TransactionEditorDialog(
     existing: TransactionListItem?,
     categories: List<String>,
+    initialType: TransactionType = TransactionType.EXPENSE,
     onDismiss: () -> Unit,
     onSave: suspend (
         transactionId: Long?,
@@ -55,8 +56,8 @@ fun TransactionEditorDialog(
     var amountText by rememberSaveable(existing?.id) {
         mutableStateOf(existing?.amountCents?.let(::centsToEditableAmountText) ?: "")
     }
-    var type by rememberSaveable(existing?.id) {
-        mutableStateOf(existing?.transactionType ?: TransactionType.EXPENSE)
+    var type by rememberSaveable(existing?.id, initialType) {
+        mutableStateOf(existing?.transactionType ?: initialType)
     }
     var category by rememberSaveable(existing?.id) {
         mutableStateOf(existing?.categoryName ?: "")
