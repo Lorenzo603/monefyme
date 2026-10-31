@@ -15,4 +15,6 @@ data class CategoryEntity(
     val id: Long = 0,
     val normalizedName: String,
     val displayName: String,
+    val iconName: String? = null,
+    val colorArgb: Int? = null,
 )

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.lorenzo.monefyme.data.local.dao.CategoryDao
 import com.lorenzo.monefyme.data.local.dao.TransactionDao
@@ -12,7 +13,7 @@ import com.lorenzo.monefyme.data.local.entity.TransactionEntity
 
 @Database(
     entities = [CategoryEntity::class, TransactionEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -24,6 +25,13 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var instance: AppDatabase? = null
 
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE categories ADD COLUMN iconName TEXT")
+                database.execSQL("ALTER TABLE categories ADD COLUMN colorArgb INTEGER")
+            }
+        }
+
         fun getInstance(
             context: Context,
             seedCategories: List<Pair<String, String>> = emptyList(),
@@ -33,7 +41,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME,
-                ).addCallback(SeedCallback(seedCategories)).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2).addCallback(SeedCallback(seedCategories)).build().also { instance = it }
             }
         }
 

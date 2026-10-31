@@ -6,6 +6,7 @@ import com.lorenzo.monefyme.data.local.dao.CategoryDao
 import com.lorenzo.monefyme.data.local.dao.TransactionDao
 import com.lorenzo.monefyme.data.local.entity.CategoryEntity
 import com.lorenzo.monefyme.data.local.entity.TransactionEntity
+import com.lorenzo.monefyme.data.model.CategoryItem
 import com.lorenzo.monefyme.data.model.ExpenseSlice
 import com.lorenzo.monefyme.data.model.TransactionListItem
 import com.lorenzo.monefyme.domain.CsvImportResult
@@ -33,6 +34,19 @@ class BudgetRepositoryImpl(
         }
     }
 
+    override fun observeCategories(): Flow<List<CategoryItem>> {
+        return categoryDao.observeAll().map { entities ->
+            entities.map { entity ->
+                CategoryItem(
+                    id = entity.id,
+                    displayName = entity.displayName,
+                    iconName = entity.iconName,
+                    colorArgb = entity.colorArgb,
+                )
+            }
+        }
+    }
+
     override fun observeMonthTransactions(month: YearMonth): Flow<List<TransactionListItem>> {
         val (start, end) = month.toEpochRange()
         return transactionDao.observeByDateRange(start, end)
@@ -41,6 +55,21 @@ class BudgetRepositoryImpl(
     override fun observeMonthExpenseSlices(month: YearMonth): Flow<List<ExpenseSlice>> {
         val (start, end) = month.toEpochRange()
         return transactionDao.observeExpenseSlicesByDateRange(start, end)
+    }
+
+    override suspend fun saveCategory(displayName: String, iconName: String, colorArgb: Int): Boolean {
+        return withContext(ioDispatcher) {
+            val normalized = normalizeCategoryLookupName(displayName)
+            val insertedId = categoryDao.insert(
+                CategoryEntity(
+                    normalizedName = normalized,
+                    displayName = normalizeCategoryDisplayName(displayName),
+                    iconName = iconName,
+                    colorArgb = colorArgb,
+                ),
+            )
+            insertedId != -1L
+        }
     }
 
     override suspend fun saveTransaction(transactionId: Long?, draft: TransactionDraft): Boolean {

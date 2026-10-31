@@ -3,6 +3,7 @@ package com.lorenzo.monefyme.ui.viewmodel
 import android.database.SQLException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lorenzo.monefyme.data.model.CategoryItem
 import com.lorenzo.monefyme.data.model.ExpenseSlice
 import com.lorenzo.monefyme.data.model.TransactionListItem
 import com.lorenzo.monefyme.data.repository.BudgetRepository
@@ -34,6 +35,9 @@ class MainViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val categories: StateFlow<List<String>> = repository.observeCategoryNames()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val allCategories: StateFlow<List<CategoryItem>> = repository.observeCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _isImporting = MutableStateFlow(false)
@@ -121,6 +125,21 @@ class MainViewModel(
             false
         } catch (sqlException: SQLException) {
             _message.value = "Database error while saving transaction."
+            false
+        }
+    }
+
+    suspend fun saveCategory(displayName: String, iconName: String, colorArgb: Int): Boolean {
+        if (displayName.isBlank()) {
+            _message.value = "Category name cannot be blank."
+            return false
+        }
+        return try {
+            val saved = repository.saveCategory(displayName, iconName, colorArgb)
+            _message.value = if (saved) "Category \"$displayName\" saved." else "Category \"$displayName\" already exists."
+            saved
+        } catch (e: Exception) {
+            _message.value = "Error saving category."
             false
         }
     }

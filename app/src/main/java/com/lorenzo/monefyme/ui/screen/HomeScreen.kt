@@ -1,7 +1,15 @@
 package com.lorenzo.monefyme.ui.screen
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -22,8 +30,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,7 +38,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lorenzo.monefyme.domain.TransactionType
+import com.lorenzo.monefyme.ui.component.CategoriesSidebar
 import com.lorenzo.monefyme.ui.component.ExpensePieChart
 import com.lorenzo.monefyme.ui.util.centsToDisplay
 import com.lorenzo.monefyme.ui.util.formatMonth
@@ -106,6 +116,7 @@ fun HomeScreen(
 
     val canMoveToNextMonth = month.isBefore(currentMonth)
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
+    val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
     val totalExpense = transactions
         .filter { it.transactionType == TransactionType.EXPENSE }
         .sumOf { it.amountCents }
@@ -114,11 +125,18 @@ fun HomeScreen(
         .sumOf { it.amountCents }
     val balance = totalIncome - totalExpense
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .drawMonefyBackground(),
-    ) {
+    var sidebarOpen by rememberSaveable { mutableStateOf(false) }
+
+    BackHandler(enabled = sidebarOpen) {
+        sidebarOpen = false
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawMonefyBackground(),
+        ) {
         Surface(color = Color(0xFF74C792)) {
             Column(
                 modifier = Modifier
@@ -127,13 +145,10 @@ fun HomeScreen(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Outlined.Menu, contentDescription = "Menu", tint = Color.White)
-                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                        Icon(Icons.Outlined.Search, contentDescription = "Search", tint = Color.White)
-                        Icon(Icons.Outlined.SwapHoriz, contentDescription = "Switch account", tint = Color.White)
+                    IconButton(onClick = { sidebarOpen = true }) {
                         Icon(Icons.Outlined.MoreVert, contentDescription = "More", tint = Color.White)
                     }
                 }
@@ -267,7 +282,40 @@ fun HomeScreen(
                 },
             )
         }
-    }
+        } // end Column (main content)
+
+        // Scrim
+        AnimatedVisibility(
+            visible = sidebarOpen,
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { sidebarOpen = false },
+                    ),
+            )
+        }
+
+        // Sidebar
+        AnimatedVisibility(
+            visible = sidebarOpen,
+            enter = slideInHorizontally(initialOffsetX = { it }),
+            exit = slideOutHorizontally(targetOffsetX = { it }),
+            modifier = Modifier.align(Alignment.CenterEnd),
+        ) {
+            CategoriesSidebar(
+                categories = allCategories,
+                onAddCategory = viewModel::saveCategory,
+                onClose = { sidebarOpen = false },
+            )
+        }
+    } // end Box
 }
 
 @OptIn(ExperimentalFoundationApi::class)
