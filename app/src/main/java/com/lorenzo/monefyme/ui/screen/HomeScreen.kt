@@ -234,7 +234,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 10.dp)
-                    .height(66.dp),
+                    .height(50.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
@@ -242,6 +242,7 @@ fun HomeScreen(
                         color = Color.White,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Normal,
+                        fontSize = 20.sp,
                     )
                 }
             }
