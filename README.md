@@ -46,10 +46,15 @@ Small budgeting tracker inspired by Monefy.
 - Coroutines + Flow
 
 ## Local run
-1. Open in Android Studio.
-2. Let Gradle sync complete.
-3. Run app on emulator/device (API 28+).
+### Run Emulator
+- `android emulator start medium_phone`
+- `android emulator start --cold --headless medium_phone` headless for tests
+- `android emulator stop`
 
+### Build and Run App
+- `android run :app`
+
+### Restore historical files
 To restore your historical file:
 1. Copy `Monefy.Data.29-10-2026.csv` to the emulator/device storage.
 2. In app, from Home use the right side-menu button near Balance to open **Restore**.
@@ -66,10 +71,5 @@ Suggested commands:
 - `./gradlew testDebugUnitTest`
 - `./gradlew connectedDebugAndroidTest` (requires running emulator)
 
-## Run Emulator
-- `android emulator start medium_phone`
-- `android emulator start --cold --headless medium_phone` headless for tests
-- `android emulator stop`
-
-## Build and Run App
-- `android run :app`
+# Icons
+https://fonts.google.com/icons?icon.platform=android&icon.set=Material+Icons
