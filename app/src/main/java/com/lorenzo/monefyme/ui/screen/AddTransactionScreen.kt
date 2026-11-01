@@ -50,16 +50,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lorenzo.monefyme.domain.TransactionType
 import com.lorenzo.monefyme.ui.category.DefaultCategories
+import com.lorenzo.monefyme.ui.util.currencyAnnotatedString
 import com.lorenzo.monefyme.ui.util.formatDate
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
 import java.math.BigDecimal
@@ -209,17 +207,7 @@ fun AddTransactionScreen(
                     color = Color.White.copy(alpha = 0.9f),
                 )
                 Text(
-                    text = buildAnnotatedString {
-                        val dotIdx = amountText.indexOf('.')
-                        if (dotIdx == -1) {
-                            append(amountText)
-                        } else {
-                            append(amountText.substring(0, dotIdx))
-                            withStyle(SpanStyle(fontSize = 34.sp)) {
-                                append(amountText.substring(dotIdx))
-                            }
-                        }
-                    },
+                    text = currencyAnnotatedString(text = amountText, baseFontSize = 58.sp),
                     modifier = Modifier
                         .weight(1f)
                         .testTag("amount_input"),

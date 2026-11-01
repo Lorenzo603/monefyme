@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lorenzo.monefyme.data.model.TransactionListItem
 import com.lorenzo.monefyme.ui.component.TransactionEditorDialog
+import com.lorenzo.monefyme.ui.util.currencyAnnotatedString
 import com.lorenzo.monefyme.ui.util.centsToDisplay
 import com.lorenzo.monefyme.ui.util.formatDate
 import com.lorenzo.monefyme.ui.util.formatMonth
@@ -192,9 +193,9 @@ private fun TransactionRow(
                 }
             }
             Text(
-                text = centsToDisplay(
-                    transaction.amountCents,
-                    transaction.transactionType,
+                text = currencyAnnotatedString(
+                    text = centsToDisplay(transaction.amountCents, transaction.transactionType),
+                    baseFontSize = MaterialTheme.typography.titleMedium.fontSize,
                 ),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,

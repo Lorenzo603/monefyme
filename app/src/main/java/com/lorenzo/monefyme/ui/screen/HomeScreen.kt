@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lorenzo.monefyme.domain.TransactionType
 import com.lorenzo.monefyme.ui.component.CategoriesSidebar
 import com.lorenzo.monefyme.ui.component.ExpensePieChart
+import com.lorenzo.monefyme.ui.util.currencyAnnotatedString
 import com.lorenzo.monefyme.ui.util.centsToDisplay
 import com.lorenzo.monefyme.ui.util.formatMonth
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
@@ -238,7 +239,10 @@ fun HomeScreen(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
-                        text = "Balance ${if (balance < 0) "-" else ""}€${centsToDisplay(abs(balance))}",
+                        text = currencyAnnotatedString(
+                            text = "Balance ${if (balance < 0) "-" else ""}€${centsToDisplay(abs(balance))}",
+                            baseFontSize = 20.sp,
+                        ),
                         color = Color.White,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Normal,

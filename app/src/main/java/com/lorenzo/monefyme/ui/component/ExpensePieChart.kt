@@ -4,10 +4,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -26,12 +28,15 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.lorenzo.monefyme.data.model.ExpenseSlice
 import com.lorenzo.monefyme.ui.category.DefaultCategories
+import com.lorenzo.monefyme.ui.util.currencyAnnotatedString
 import com.lorenzo.monefyme.ui.util.centsToDisplay
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.floor
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -95,6 +100,15 @@ fun ExpensePieChart(
         }
     }
 
+    val expenseCentsByCategory = remember(slicesWithMeta, hasExpenseSlices, totalExpense) {
+        if (!hasExpenseSlices) {
+            return@remember emptyMap<String, Long>()
+        }
+        slicesWithMeta
+            .groupBy { normalizedCategory(it.categoryName) }
+            .mapValues { entry -> entry.value.sumOf { it.amountCents } }
+    }
+
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
@@ -112,6 +126,8 @@ fun ExpensePieChart(
 
         val chartSize: Dp = 226.dp
         val strokeWidth: Dp = 50.dp
+        val percentageLabelGap: Dp = 2.dp
+        val percentageLabelHeight: Dp = 13.dp
         val density = LocalDensity.current
         val chartRadiusPx = with(density) { chartSize.toPx() / 2f }
         val strokeWidthPx = with(density) { strokeWidth.toPx() }
@@ -119,7 +135,9 @@ fun ExpensePieChart(
         val ringOuterRadiusPx = ringCenterRadiusPx + strokeWidthPx / 2f
         val iconSizePx = with(density) { iconSize.toPx() }
         val xLimitPx = with(density) { (maxWidth / 2f - (iconSize / 2f) - 4.dp).toPx() }
-        val yLimitPx = with(density) { (390.dp / 2f - (iconSize / 2f) - 4.dp).toPx() }
+        val yLimitPx = with(density) {
+            (390.dp / 2f - (iconSize / 2f) - percentageLabelGap - percentageLabelHeight - 4.dp).toPx()
+        }
         val connectorStartRadiusPx = ringOuterRadiusPx + with(density) { 4.dp.toPx() }
         val lineWidthPx = with(density) { 1.2.dp.toPx() }
         val iconBufferPx = (iconSizePx / 2f) + with(density) { 3.dp.toPx() }
@@ -153,6 +171,8 @@ fun ExpensePieChart(
                 xFactor = assigned.slot.xFactor,
                 yFactor = assigned.slot.yFactor,
                 connectorCategoryKey = assigned.categoryKey,
+                percentageLabel = expenseCentsByCategory[assigned.categoryKey]
+                    ?.let { percentageLabelFor(it, totalExpense) },
             )
         }
 
@@ -174,6 +194,7 @@ fun ExpensePieChart(
                     xFactor = slot.xFactor,
                     yFactor = slot.yFactor,
                     connectorCategoryKey = null,
+                    percentageLabel = null,
                 )
             }
 
@@ -236,8 +257,12 @@ fun ExpensePieChart(
             }
         }
 
+        val centreAmountFontSize = MaterialTheme.typography.titleMedium.fontSize
         Text(
-            text = "€${centsToDisplay(displayedIncomeCents)}",
+            text = currencyAnnotatedString(
+                text = "€${centsToDisplay(displayedIncomeCents)}",
+                baseFontSize = centreAmountFontSize,
+            ),
             color = incomeLabelColor,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
@@ -246,11 +271,14 @@ fun ExpensePieChart(
                 .offset(y = (-7).dp),
         )
         Text(
-            text = if (isMonthEmpty) {
-                "€${centsToDisplay(displayedExpenseCents)}"
-            } else {
-                "-€${centsToDisplay(displayedExpenseCents)}"
-            },
+            text = currencyAnnotatedString(
+                text = if (isMonthEmpty) {
+                    "€${centsToDisplay(displayedExpenseCents)}"
+                } else {
+                    "-€${centsToDisplay(displayedExpenseCents)}"
+                },
+                baseFontSize = centreAmountFontSize,
+            ),
             color = expenseLabelColor,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
@@ -259,17 +287,21 @@ fun ExpensePieChart(
                 .offset(y = 21.dp),
         )
 
+        // Each icon is rendered together with its percentage label in a single container, so the
+        // container offset alone controls the placement. The label slot is reserved for every icon
+        // (label or not) to keep all icons on the ring.
+        val iconLabelSlotHeight: Dp = percentageLabelGap + percentageLabelHeight
         iconPlacements.forEach { placement ->
             val labelX = placement.xFactor * xLimitPx
             val labelY = placement.yFactor * yLimitPx
-            Box(
+            Column(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .offset(
                         x = with(density) { labelX.toDp() },
-                        y = with(density) { labelY.toDp() },
+                        y = with(density) { labelY.toDp() } + iconLabelSlotHeight / 2f,
                     ),
-                contentAlignment = Alignment.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(
                     modifier = Modifier
@@ -283,6 +315,24 @@ fun ExpensePieChart(
                         tint = placement.visual.color,
                         modifier = Modifier.size(iconSize - 6.dp),
                     )
+                }
+                Box(
+                    modifier = Modifier
+                        .padding(top = percentageLabelGap)
+                        .height(percentageLabelHeight),
+                    contentAlignment = Alignment.TopCenter,
+                ) {
+                    val percentageLabel = placement.percentageLabel
+                    if (percentageLabel != null) {
+                        Text(
+                            text = percentageLabel,
+                            color = placement.visual.color,
+                            fontSize = 10.sp,
+                            lineHeight = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }
@@ -310,6 +360,7 @@ private data class IconPlacement(
     val xFactor: Float,
     val yFactor: Float,
     val connectorCategoryKey: String?,
+    val percentageLabel: String?,
 )
 
 private data class CategoryConnector(
@@ -500,4 +551,11 @@ private fun categoryVisualFor(categoryName: String): CategoryVisual {
 
 private fun normalizedCategory(categoryName: String): String {
     return categoryName.trim().lowercase()
+}
+
+private fun percentageLabelFor(partCents: Long, totalCents: Long): String? {
+    if (partCents <= 0L || totalCents <= 0L) return null
+    val percent = partCents.toFloat() / totalCents.toFloat() * 100f
+    val rounded = percent.roundToInt()
+    return if (rounded <= 0) "<1%" else "$rounded%"
 }
