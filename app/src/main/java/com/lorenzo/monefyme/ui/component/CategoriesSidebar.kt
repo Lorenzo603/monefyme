@@ -53,13 +53,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.lorenzo.monefyme.data.model.CategoryItem
 import com.lorenzo.monefyme.ui.category.CategoryIconRegistry
-import com.lorenzo.monefyme.ui.category.DefaultCategories
+import com.lorenzo.monefyme.ui.category.resolveColor
+import com.lorenzo.monefyme.ui.category.resolveIcon
 import kotlinx.coroutines.launch
 
 private val AppGreen = Color(0xFF74C792)
@@ -78,16 +78,6 @@ private val colorPalette = listOf(
     Color(0xFFDF6E75), Color(0xFF74C792), Color(0xFF8F9A9D),
     Color(0xFFE07B42), Color(0xFF5B8C5A),
 )
-
-private fun CategoryItem.resolveIcon(): ImageVector {
-    iconName?.let { CategoryIconRegistry.findByName(it) }?.let { return it }
-    return DefaultCategories.findByName(displayName)?.icon ?: DefaultCategories.fallbackIcon
-}
-
-private fun CategoryItem.resolveColor(): Color {
-    colorArgb?.let { return Color(it.toLong() and 0xFFFFFFFFL) }
-    return DefaultCategories.findByName(displayName)?.color ?: DefaultCategories.fallbackColor
-}
 
 @Composable
 fun CategoriesSidebar(
@@ -286,7 +276,7 @@ private fun CategoryRow(item: CategoryItem) {
 }
 
 @Composable
-private fun AddCategoryDialog(
+internal fun AddCategoryDialog(
     onDismiss: () -> Unit,
     onSave: suspend (displayName: String, iconName: String, colorArgb: Int) -> Boolean,
 ) {

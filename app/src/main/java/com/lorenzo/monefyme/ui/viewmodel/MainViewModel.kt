@@ -10,6 +10,7 @@ import com.lorenzo.monefyme.data.repository.BudgetRepository
 import com.lorenzo.monefyme.domain.CsvImportResult
 import com.lorenzo.monefyme.domain.TransactionDraft
 import com.lorenzo.monefyme.domain.TransactionType
+import com.lorenzo.monefyme.ui.category.CategoryOrder
 import com.lorenzo.monefyme.ui.util.amountTextToCentsOrNull
 import com.lorenzo.monefyme.ui.util.parseDateOrNull
 import java.time.YearMonth
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 
@@ -39,6 +41,14 @@ class MainViewModel(
 
     val allCategories: StateFlow<List<CategoryItem>> = repository.observeCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Every category the picker can offer: the seeded ones in their declared order, the ones
+     * added later at the end, and always all the seeded ones even before they are stored.
+     */
+    val pickerCategories: StateFlow<List<CategoryItem>> = repository.observeCategories()
+        .map(CategoryOrder::seededFirst)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CategoryOrder.seededFirst(emptyList()))
 
     private val _isImporting = MutableStateFlow(false)
     val isImporting: StateFlow<Boolean> = _isImporting.asStateFlow()

@@ -55,8 +55,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lorenzo.monefyme.data.model.CategoryItem
 import com.lorenzo.monefyme.domain.TransactionType
 import com.lorenzo.monefyme.ui.category.DefaultCategories
+import com.lorenzo.monefyme.ui.category.resolveColor
+import com.lorenzo.monefyme.ui.category.resolveIcon
+import com.lorenzo.monefyme.ui.component.AddCategoryDialog
 import com.lorenzo.monefyme.ui.util.currencyAnnotatedString
 import com.lorenzo.monefyme.ui.util.formatDate
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
@@ -78,9 +83,11 @@ fun AddTransactionScreen(
 ) {
     val scope = rememberCoroutineScope()
     val today = remember { LocalDate.now() }
+    val pickerCategories by viewModel.pickerCategories.collectAsStateWithLifecycle()
     var amountText by rememberSaveable { mutableStateOf("0") }
     var note by rememberSaveable { mutableStateOf("") }
     var showCategoryPicker by rememberSaveable { mutableStateOf(false) }
+    var showAddCategoryDialog by rememberSaveable { mutableStateOf(false) }
     var firstOperand by rememberSaveable { mutableStateOf<BigDecimal?>(null) }
     var pendingOperator by rememberSaveable { mutableStateOf<Char?>(null) }
     var startNewNumber by rememberSaveable { mutableStateOf(true) }
@@ -114,6 +121,10 @@ fun AddTransactionScreen(
                 onBack()
             }
         }
+    }
+
+    val persistCategory: suspend (String, String, Int) -> Boolean = { displayName, iconName, colorArgb ->
+        viewModel.saveCategory(displayName, iconName, colorArgb)
     }
 
     Column(
@@ -262,7 +273,9 @@ fun AddTransactionScreen(
 
         if (showCategoryPicker) {
             CategoryPicker(
+                categories = pickerCategories,
                 onCategorySelected = persistTransaction,
+                onAddCategory = { showAddCategoryDialog = true },
                 modifier = Modifier
                     .weight(1f)
                     .padding(top = 12.dp),
@@ -328,6 +341,13 @@ fun AddTransactionScreen(
                         showCategoryPicker = true
                     }
                 },
+            )
+        }
+
+        if (showAddCategoryDialog) {
+            AddCategoryDialog(
+                onDismiss = { showAddCategoryDialog = false },
+                onSave = persistCategory,
             )
         }
     }
@@ -406,7 +426,9 @@ private fun CalculatorPad(
 
 @Composable
 private fun CategoryPicker(
+    categories: List<CategoryItem>,
     onCategorySelected: (String) -> Unit,
+    onAddCategory: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyVerticalGrid(
@@ -418,7 +440,8 @@ private fun CategoryPicker(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(DefaultCategories.all) { category ->
+        items(categories, key = { it.displayName }) { category ->
+            val categoryColor = category.resolveColor()
             OutlinedButton(
                 onClick = { onCategorySelected(category.displayName) },
                 modifier = Modifier
@@ -427,32 +450,35 @@ private fun CategoryPicker(
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
                     containerColor = Color(0xFFEAF8F2),
-                    contentColor = category.color,
+                    contentColor = categoryColor,
                 ),
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(category.icon, contentDescription = null, modifier = Modifier.size(28.dp))
+                    Icon(
+                        category.resolveIcon(),
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                    )
                     Text(
                         text = category.displayName,
                         modifier = Modifier.padding(top = 6.dp),
                         fontSize = 16.sp,
                         textAlign = TextAlign.Center,
-                        color = category.color,
+                        color = categoryColor,
                     )
                 }
             }
         }
         item {
             OutlinedButton(
-                onClick = {},
-                enabled = false,
+                onClick = onAddCategory,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(102.dp),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    disabledContainerColor = Color(0xFFEAF8F2),
-                    disabledContentColor = DefaultCategories.fallbackColor,
+                    containerColor = Color(0xFFEAF8F2),
+                    contentColor = DefaultCategories.fallbackColor,
                 ),
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
