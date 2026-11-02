@@ -7,7 +7,15 @@ depends_on: nothing
 
 ## Task
 
-Run this on macos to fix path of files first
+Run this on macos to fix path of files first. run `./gradlew clean` first
+
+
+
+
+
+
+
+
 Fix the following warnings that were displayed when running this command which required a recompilation: `./gradlew test`
 
 ```
