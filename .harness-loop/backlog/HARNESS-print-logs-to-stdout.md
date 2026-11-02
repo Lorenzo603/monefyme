@@ -1,1 +1,0 @@
-Make sure of what the model is doing/thinking/outputting are outputted to stdout when running the harness.

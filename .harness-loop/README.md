@@ -16,6 +16,8 @@ and moves on to the next task.
 
 Each loop is one `pi --print` process with its own session id, so no conversation
 context is carried between tasks — only what is written in the task file and in `rules.md`.
+The runner streams that process live, so you watch the model think, answer and run tools
+while it works (see [Watch the model work](#watch-the-model-work)).
 
 ## Install Pi
 
@@ -53,10 +55,46 @@ Flags:
 | `--timeout N` | kill a task after N seconds (default 1500) |
 | `--ephemeral` | `pi --no-session`: nothing written to `sessions/` |
 | `--session-log` | also write a JSONL transcript into `sessions/` |
+| `--no-stream` | do not print the model's thinking/tools/replies live |
+| `--stream` | force live printing even if config disables it |
+| `--no-thinking` | live-print tools and replies, but hide thinking blocks |
+| `--raw` | also dump Pi's raw JSONL events to the console |
 | `--pi-bin PATH` | use a different pi binary |
 | `--dry-run` / `--list` | inspect without invoking Pi |
 
 Exit codes: `0` backlog clear (or dry run), `1` a task failed or is blocked, `2` Pi missing / bad config.
+
+## Watch the model work
+
+By default the runner starts each attempt as `pi --print --mode json` and renders Pi's
+session events as they arrive, so the console shows what the model is doing at any moment:
+
+```text
+=== 04-csv-backup-restore (attempt 1) ===
+[pi] --- turn 1 ---
+[thinking] The task asks for CSV backup; let me find the existing export code first.
+[tool bash] {"command": "rg -n \"export\" app/src"}
+    -> bash ok 143ms: app/src/main/java/.../ExportActivity.kt:42 ...
+[assistant] I'll add a CSV writer next to the existing JSON exporter.
+STATUS: DONE added CsvExporter.kt and CsvExporterTest.kt
+```
+
+| Prefix | Source event |
+| --- | --- |
+| `[thinking]` | `thinking_delta` / `thinking_end` — the model's reasoning, streamed live |
+| `[assistant]` | `text_delta` / `text_end` — the model's reply, streamed live |
+| `[tool <name>]` | `tool_execution_start` (arguments) and `tool_execution_end` (result, ms, error flag) |
+| `[pi]` | runner notes: turns, retries, compaction, Pi `stderr`, agent start/end |
+
+Config keys: `stream_output` (default `true`), `stream_thinking` (default `true`, `false`
+hides reasoning), `stream_raw` (default `false`, prints the JSONL records verbatim).
+Tool arguments are truncated to 400 characters and tool results to 1500 in the live view;
+nothing is truncated in the logs.
+
+The full raw JSONL stream plus a copy of the rendered live view are always written to
+`logs/<slug>-runN.log`, so a run you did not watch is still fully reviewable afterwards.
+If the installed Pi does not support `--mode json`, the runner falls back to echoing Pi's
+plain-text stdout line by line, which still streams but without thinking/tool structure.
 
 ## Task file format
 
@@ -95,8 +133,9 @@ The prompt tells every agent to end its final message with exactly one of:
 STATUS: DONE | BLOCKED | FAILED
 ```
 
-The runner parses that line, falls back to the process exit code when it is missing, and
-maps the result to the frontmatter status. Full stdout per attempt lands in `logs/`.
+The runner parses that line from the assistant text (falling back to the process exit code
+when it is missing), and maps the result to the frontmatter status. Both the raw stdout and
+the rendered live view per attempt land in `logs/`.
 
 ## Notes
 
