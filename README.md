@@ -47,7 +47,7 @@ Small budgeting tracker inspired by Monefy.
 
 ## Local run
 ### Run Emulator
-- run `.\set-env-variables.ps1` on Windows or `./set-env-variables.sh` on Macos to set Android SDK environment variables.
+- run `.\set-env-variables.ps1` on Windows or `source ./set-env-variables.sh` on Macos to set Android SDK environment variables.
 - `android emulator start medium_phone`
 - `android emulator start --cold --headless medium_phone` headless for tests
 - `android emulator stop`
