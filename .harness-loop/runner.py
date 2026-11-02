@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import fnmatch
 import json
 import os
 import queue
@@ -37,6 +38,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent
 TASKS_DIR = ROOT / "tasks"
+ARCHIVED_DIR = ROOT / "archived-tasks"
 RULES_FILE = ROOT / "rules.md"
 CONFIG_FILE = ROOT / "config.json"
 SESSIONS_DIR = ROOT / "sessions"
@@ -49,12 +51,17 @@ FAILED = "failed"
 
 STATUS_RE = re.compile(r"STATUS:\s*(DONE|BLOCKED|FAILED)\s*(.*)", re.IGNORECASE)
 FRONT_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$")
+# How many lines the task file's ## Run log section keeps.
+RUN_LOG_ENTRIES = 30
 
 VALID_THINKING = {"off", "minimal", "low", "medium", "high", "xhigh", "max"}
 # Print mode cannot show Pi's interactive project-trust prompt, so the runner decides explicitly.
 VALID_TRUST = {"approve", "ignore", "ask"}
 # "stdin" pipes the prompt (Pi prepends it to the first prompt); "arg" sends a one-line argument.
 VALID_PROMPT_MODES = {"stdin", "arg"}
+
+# fnmatch is used for the test-presence globs, where `*` also crosses `/`, so
+# "app/src/test/*" matches every file below app/src/test/.
 
 # Live console rendering limits (what the model is thinking/doing/printing).
 TOOL_ARG_CHARS = 400
@@ -74,6 +81,16 @@ DEFAULT_CONFIG = {
     "stream_output": True,   # live-print what Pi is thinking/doing/printing while it runs
     "stream_thinking": True,  # include thinking blocks in the live view
     "stream_raw": False,     # also dump Pi's raw JSONL records to the console
+    # Verification: the harness re-runs these test commands after every attempt that claims
+    # DONE. A failure sends the same task back to a fresh Pi session (see max_attempts).
+    "verify_commands": [],          # shell commands, run from the repo root
+    "verify_timeout_seconds": 900,  # per-command timeout
+    "verify_env_script": "",        # e.g. "set-env-variables" -> .ps1/.sh (falls back to .sample)
+    "max_attempts": 3,              # Pi sessions allowed per task before it is marked failed
+    # Require the agent to touch a test file whenever it changed production code.
+    "require_tests": False,
+    "source_globs": ["app/src/main/*"],   # production paths that trigger the test requirement
+    "test_globs": ["app/src/test/*", "app/src/androidTest/*"],  # paths that count as tests
 }
 
 
@@ -94,7 +111,10 @@ class Task:
 
 def split_deps(raw: str) -> list[str]:
     raw = (raw or "").strip().strip("[]")
-    return [part.strip().strip("'\"") for part in raw.split(",") if part.strip()]
+    parts = [part.strip().strip("'\"") for part in raw.split(",")]
+    # A task may say `depends_on: nothing`; that is not a prerequisite to wait for.
+    empty = {"none", "nothing", "no", "no deps", "n/a", "na", "-", ""}
+    return [part for part in parts if part and part.lower() not in empty]
 
 
 def frontmatter_end(lines: list[str]) -> int | None:
@@ -106,6 +126,20 @@ def frontmatter_end(lines: list[str]) -> int | None:
     return None
 
 
+def repair_frontmatter(lines: list[str]) -> list[str]:
+    """Close a frontmatter block whose closing `---` an older runner dropped.
+
+    Without the terminator the block is invisible: every later read fell back to
+    status=todo/attempts=0, so a retried task reused its own attempt number.
+    """
+    if not lines or lines[0].strip() != "---" or frontmatter_end(lines) is not None:
+        return lines
+    i = 1
+    while i < len(lines) and FRONT_RE.match(lines[i]):
+        i += 1
+    return lines[:i] + ["---"] + lines[i:] if i > 1 else lines
+
+
 def read_text(path: Path) -> str:
     # utf-8-sig: tolerate a Windows/Notepad BOM, which would otherwise hide the frontmatter
     return path.read_text(encoding="utf-8-sig")
@@ -113,7 +147,7 @@ def read_text(path: Path) -> str:
 
 def read_task(path: Path) -> Task:
     text = read_text(path)
-    lines = text.splitlines()
+    lines = repair_frontmatter(text.splitlines())
     meta: dict[str, str] = {}
     meta_lines: list[str] = []
     body = text.strip()
@@ -145,11 +179,19 @@ def read_task(path: Path) -> Task:
     )
 
 
+ATTEMPT_SUMMARY_RE = re.compile(r"^-\s+\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} attempt \d+:")
+
+
 def write_task(task: Task, status: str, log_lines: list[str]) -> None:
-    """Rewrite status/attempts in the frontmatter and append the run log."""
+    """Rewrite status/attempts in the frontmatter and rebuild the capped ## Run log section.
+
+    Earlier attempts keep only their one-line summary (the verbose tail lives in logs/), so a
+    task that was retried still shows its whole history in the task file.
+    """
     text = read_text(task.path).replace("\r\n", "\n")
-    lines = text.splitlines()
+    lines = repair_frontmatter(text.splitlines())
     end = frontmatter_end(lines)
+    history: list[str] = []
 
     if end is not None:
         meta = lines[1:end]
@@ -170,15 +212,40 @@ def write_task(task: Task, status: str, log_lines: list[str]) -> None:
             meta[attempts_i] = f"attempts: {task.attempts + 1}"
 
         body_lines = lines[end + 1:]
-        new_text = "\n".join([lines[0], *meta, *body_lines])
+        # Cut the previous run log, keeping its per-attempt summary lines.
+        for i, line in enumerate(body_lines):
+            if line.strip() == "## Run log":
+                history = [
+                    l.strip()[1:].strip()
+                    for l in body_lines[i + 1:]
+                    if ATTEMPT_SUMMARY_RE.match(l.strip())
+                ]
+                body_lines = body_lines[:i]
+                break
+        # Keep the closing delimiter: without it the frontmatter dissolved and every later
+        # read fell back to attempts=0, so a retried task reused its own attempt number.
+        new_text = "\n".join([lines[0], *meta, "---", *body_lines])
     else:
         new_text = "\n".join(
             ["---", f"status: {status}", f"attempts: {task.attempts + 1}", "---", "", text.strip()]
         )
 
+    entries = (history + log_lines)[-RUN_LOG_ENTRIES:]
     new_text = new_text.rstrip() + "\n\n## Run log\n\n"
-    new_text += "\n".join(f"- {line}" for line in log_lines) + "\n"
+    new_text += "\n".join(f"- {line}" for line in entries) + "\n"
     task.path.write_text(new_text, encoding="utf-8", newline="\n")
+
+
+def archive_task(task: Task) -> Path:
+    """Move a completed task file from tasks/ to archived-tasks/ (the runner does this,
+    never the model). Returns the destination path."""
+    ARCHIVED_DIR.mkdir(parents=True, exist_ok=True)
+    dest = ARCHIVED_DIR / task.path.name
+    if dest.exists():
+        stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+        dest = ARCHIVED_DIR / f"{task.path.stem}-{stamp}{task.path.suffix}"
+    shutil.move(str(task.path), str(dest))
+    return dest
 
 
 # --------------------------------------------------------------------------- prompt and command
@@ -189,42 +256,61 @@ def task_reference(task: Task) -> str:
     return f"@{task.path.relative_to(REPO).as_posix()}"
 
 
-def prompt_instructions(task: Task) -> str:
+def prompt_instructions(task: Task, cfg: dict, prior_note: str = "") -> str:
     """Instruction block. Pi prepends piped stdin to the first prompt, so this travels on stdin.
 
     Pi on Windows is normally a .cmd shim (npm), and cmd.exe truncates an argument at its
     first newline, so multi-line prompts must never be passed as command-line arguments.
     """
-    deps = ", ".join(task.depends_on) if task.depends_on else "none"
     rules = RULES_FILE.relative_to(REPO).as_posix()
-    return (
-        f"Task file: {task_reference(task)}\n"
-        f"Project rules file (already loaded by Pi): {rules}\n\n"
-        "Implement the task above in this repository.\n"
-        "Rules:\n"
-        "- Work only on this task; keep the diff scoped to it.\n"
-        f"- Follow the shared rules in {rules} and the repository instructions in AGENTS.md.\n"
-        "- Verify with the commands listed in the project instructions.\n"
-        "- Never run git commit, git push, or any destructive git command.\n"
-        "- You cannot ask questions in this mode: if the task is ambiguous, state the\n"
-        "  assumption you made instead of waiting for an answer.\n"
-        "End your reply with exactly one line:\n"
-        "STATUS: DONE <what you changed>\n"
-        "STATUS: BLOCKED <what you need from a human>\n"
-        "STATUS: FAILED <what broke>"
-    )
+    parts = [
+        f"Task file: {task_reference(task)}",
+        f"Project rules file (already loaded by Pi): {rules}",
+        "",
+        "Implement the task above in this repository.",
+        "Rules:",
+        "- Work only on this task; keep the diff scoped to it.",
+        f"- Follow the shared rules in {rules} and the repository instructions in AGENTS.md.",
+        "- Tests are part of the work: any behaviour change you make must come with an added",
+        "  or updated automated test that covers it. A change without tests is not DONE.",
+        "- Run the project's test commands yourself, and only report STATUS: DONE once they",
+        "  pass. The harness re-runs them after your session and, on failure, hands the same",
+        "  task back to a fresh session, so a green test run is what ends the loop.",
+        "- Never run git commit, git push, or any destructive git command.",
+        "- You cannot ask questions in this mode: if the task is ambiguous, state the",
+        "  assumption you made instead of waiting for an answer.",
+    ]
+    if cfg["verify_commands"]:
+        commands = "\n".join(f"    {cmd}" for cmd in cfg["verify_commands"])
+        parts.append("- Harness verification commands (the runner enforces these):")
+        parts.append(commands)
+    else:
+        parts.append("- Verify with the commands listed in the project instructions.")
+    parts += [
+        "End your reply with exactly one line:",
+        "STATUS: DONE <what you changed>",
+        "STATUS: BLOCKED <what you need from a human>",
+        "STATUS: FAILED <what broke>",
+    ]
+    if prior_note:
+        parts += ["", "Previous attempt of this same task did not pass:", prior_note]
+    return "\n".join(parts)
 
 
-def compact_prompt(task: Task) -> str:
+def compact_prompt(task: Task, cfg: dict, prior_note: str = "") -> str:
     """Single-line prompt for prompt_mode='arg' (never multi-line, see prompt_instructions)."""
     rules = RULES_FILE.relative_to(REPO).as_posix()
-    return (
-        f"{task_reference(task)} Implement only this task, follow {rules}, and end your reply "
+    text = (
+        f"{task_reference(task)} Implement only this task, follow {rules}, add or update tests "
+        "for what you change, run the project test commands until they pass, and end your reply "
         "with one STATUS line: DONE, BLOCKED or FAILED."
     )
+    if prior_note:
+        text += " Previous attempt failed: " + " ".join(prior_note.split())
+    return text
 
 
-def build_command(task: Task, cfg: dict, attempt: int) -> list[str]:
+def build_command(task: Task, cfg: dict, attempt: int, prior_note: str = "") -> list[str]:
     cmd = [cfg["pi_bin"], "--print"]
 
     def supported(*flags: str) -> bool:
@@ -262,13 +348,15 @@ def build_command(task: Task, cfg: dict, attempt: int) -> list[str]:
         # JSON mode gives per-token deltas and tool events instead of a single final answer.
         use("--mode", "json")
 
-    cmd.append(task_reference(task) if cfg["prompt_mode"] == "stdin" else compact_prompt(task))
+    cmd.append(
+        task_reference(task) if cfg["prompt_mode"] == "stdin" else compact_prompt(task, cfg, prior_note)
+    )
     return cmd
 
 
-def build_stdin(task: Task, cfg: dict) -> str | None:
+def build_stdin(task: Task, cfg: dict, prior_note: str = "") -> str | None:
     """Text piped to Pi's stdin (Pi prepends it to the first prompt)."""
-    return prompt_instructions(task) if cfg["prompt_mode"] == "stdin" else None
+    return prompt_instructions(task, cfg, prior_note) if cfg["prompt_mode"] == "stdin" else None
 
 
 # --------------------------------------------------------------------------- live output
@@ -564,6 +652,158 @@ def stream_pi_process(proc: subprocess.Popen, cfg: dict) -> tuple[str, str, str,
     )
 
 
+# --------------------------------------------------------------------------- harness verification
+
+
+def matches_any(path: str, patterns: list[str]) -> bool:
+    return any(fnmatch.fnmatch(path, pattern) for pattern in patterns)
+
+
+def git_lines(*args: str) -> list[str] | None:
+    """Output lines of a git command run in the repo, or None when git cannot be used."""
+    try:
+        proc = subprocess.run(
+            ["git", *args],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+        )
+    except (FileNotFoundError, PermissionError, OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    return [line.strip().replace("\\", "/") for line in proc.stdout.splitlines() if line.strip()]
+
+
+def changed_files() -> set[str] | None:
+    """Working-tree changes vs HEAD plus untracked files (POSIX-style paths).
+
+    None when git is unavailable, which disables the mechanical test-presence check.
+    """
+    tracked = git_lines("diff", "--name-only", "HEAD")
+    untracked = git_lines("ls-files", "--others", "--exclude-standard")
+    if tracked is None and untracked is None:
+        return None
+    return set(tracked or []) | set(untracked or [])
+
+
+def normalize_command(cmd: str) -> str:
+    """Make a POSIX-style command runnable in this shell (cmd.exe rejects ./gradlew)."""
+    cmd = (cmd or "").strip()
+    if os.name == "nt" and cmd.startswith("./"):
+        cmd = ".\\" + cmd[2:]
+    return cmd
+
+
+def resolve_env_script(name: str) -> str:
+    """Resolve the env-setup script to a repo-relative path ('' when there is none).
+
+    The real script is gitignored in this repo, so the committed .sample is the fallback.
+    """
+    if not name:
+        return ""
+    suffix = ".ps1" if os.name == "nt" else ".sh"
+    base = name[:-3] if name.lower().endswith(".sample") else name
+    if base.lower().endswith(suffix):
+        base = base[: -len(suffix)]
+    for candidate in (f"{base}{suffix}", f"{base}.sample", base):
+        if (REPO / candidate).is_file():
+            return candidate
+    print(f"note: verify_env_script {name!r} not found; running checks without it", file=sys.stderr)
+    return ""
+
+
+def verification_command(cmd: str, cfg: dict) -> str:
+    """Wrap a verify command so it runs with the project's environment variables set."""
+    cmd = normalize_command(cmd)
+    script = cfg["verify_env_script"]
+    if not script:
+        return cmd
+    if os.name == "nt":
+        return f'powershell -NoProfile -ExecutionPolicy Bypass -Command ". .\\{script}; {cmd}"'
+    return f'. "./{script}"; {cmd}'
+
+
+def run_verification(task: Task, cfg: dict) -> list[str]:
+    """Run the harness test commands after an attempt. Returns failure notes ([] when green).
+
+    The runner, not the model, decides whether the tests passed: a DONE claim on failing
+    tests is turned back into an open attempt on the same task.
+    """
+    notes: list[str] = []
+    if not cfg["verify_commands"]:
+        print("note: no verify_commands configured; the runner cannot verify tests itself",
+              file=sys.stderr)
+        return notes
+
+    for raw in cfg["verify_commands"]:
+        cmd = verification_command(raw, cfg)
+        if not cmd:
+            continue
+        print(f"\n--- verification ({task.slug}): {cmd} ---")
+        try:
+            proc = subprocess.run(
+                cmd,
+                shell=True,
+                cwd=REPO,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=cfg["verify_timeout_seconds"],
+            )
+            code = proc.returncode
+            output = (proc.stdout or "") + "\n" + (proc.stderr or "")
+            timed_out = False
+        except subprocess.TimeoutExpired:
+            code, output, timed_out = -1, "", True
+        tail = [line.strip() for line in output.splitlines() if line.strip()]
+        tail = tail[-cfg["log_tail_lines"]:]
+        for line in tail:
+            print(f"    {line}")
+        if timed_out:
+            note = f"timed out after {cfg['verify_timeout_seconds']}s: {cmd}"
+        elif code != 0:
+            note = f"exited {code}: {cmd}"
+        else:
+            note = ""
+        if note:
+            print(f"[pi] verification FAILED: {note}")
+            notes.append(note)
+            if tail:
+                excerpt = " | ".join(tail[-12:])
+                notes.append(f"output tail: {excerpt[:1200]}")
+        else:
+            print(f"[pi] verification passed: {cmd}")
+    return notes
+
+
+def test_coverage_note(task: Task, cfg: dict, baseline: set[str] | None) -> str:
+    """Require a test file in the diff when the attempt changed production code."""
+    if not cfg["require_tests"]:
+        return ""
+    now = changed_files()
+    if now is None or baseline is None:
+        print("note: git is unavailable; skipping the test-presence check", file=sys.stderr)
+        return ""
+    changed = now - baseline
+    source = sorted(p for p in changed if matches_any(p, cfg["source_globs"]))
+    if not source:
+        return ""  # harness/docs-only task: nothing here that needs a test
+    tests = sorted(p for p in changed if matches_any(p, cfg["test_globs"]))
+    if tests:
+        return ""
+    shown = ", ".join(source[:8]) + (" ..." if len(source) > 8 else "")
+    print(f"[pi] no test file changed for: {shown}")
+    return (
+        "no test file was added or updated although production code changed "
+        f"(tests must match {', '.join(cfg['test_globs'])}); changed source: {shown}"
+    )
+
+
 # --------------------------------------------------------------------------- selection and run loop
 
 
@@ -590,11 +830,19 @@ def load_config() -> dict:
             if isinstance(expected, int) and not isinstance(value, int):
                 print(f"warning: {key} must be a number of seconds", file=sys.stderr)
                 continue
+            if isinstance(expected, list):
+                if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+                    print(f"warning: {key} must be a list of strings", file=sys.stderr)
+                    continue
+                cfg[key] = [item.strip() for item in value if item.strip()]
+                continue
             if isinstance(expected, str) and value and not isinstance(value, str):
                 print(f"warning: {key} must be a string", file=sys.stderr)
                 continue
             cfg[key] = value
 
+    # Resolve once, so a missing script is reported at startup instead of per command.
+    cfg["verify_env_script"] = resolve_env_script(cfg["verify_env_script"])
     cfg["pi_help"] = ""  # filled in by main() after probing `pi --help`
     validate_config(cfg)
     return cfg
@@ -630,6 +878,12 @@ def validate_config(cfg: dict) -> None:
         cfg["timeout_seconds"] = 10
     if cfg["log_tail_lines"] < 1:
         cfg["log_tail_lines"] = DEFAULT_CONFIG["log_tail_lines"]
+    if cfg["max_attempts"] < 1:
+        print("warning: max_attempts must be at least 1, using 1", file=sys.stderr)
+        cfg["max_attempts"] = 1
+    if cfg["verify_timeout_seconds"] < 10:
+        print("warning: verify_timeout_seconds is too small, using 10", file=sys.stderr)
+        cfg["verify_timeout_seconds"] = 10
 
 
 def get_pi_help(pi_bin: str) -> str:
@@ -651,7 +905,10 @@ def get_pi_help(pi_bin: str) -> str:
 
 def select_tasks(args: argparse.Namespace) -> list[Task]:
     tasks = [read_task(p) for p in sorted(TASKS_DIR.glob("*.md"))]
-    by_slug = {t.slug: t for t in tasks}
+    # Completed tasks are moved to archived-tasks/, so dependency checks must also
+    # look there or a done prerequisite would suddenly count as "waiting on".
+    archived = [read_task(p) for p in sorted(ARCHIVED_DIR.glob("*.md"))] if ARCHIVED_DIR.is_dir() else []
+    by_slug = {t.slug: t for t in archived + tasks}
 
     accepted = {TODO}
     if args.retry_failed:
@@ -676,10 +933,23 @@ def select_tasks(args: argparse.Namespace) -> list[Task]:
     return selected[: args.limit] if args.limit else selected
 
 
-def run_task(task: Task, cfg: dict, args: argparse.Namespace) -> str:
-    attempt = task.attempts + 1
-    cmd = build_command(task, cfg, attempt)
-    stdin_text = build_stdin(task, cfg) or ""
+@dataclass
+class Attempt:
+    """What a single Pi session claimed, before the harness checks it."""
+
+    status: str
+    note: str
+    tail: list[str]
+    log_name: str
+    exit_code: int
+
+
+def run_attempt(
+    task: Task, cfg: dict, args: argparse.Namespace, attempt: int, prior_note: str = ""
+) -> Attempt:
+    """One Pi session on this task. Returns the model's claim; run_task decides if it holds."""
+    cmd = build_command(task, cfg, attempt, prior_note)
+    stdin_text = build_stdin(task, cfg, prior_note) or ""
     stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def show(cmd_line: str) -> None:
@@ -691,9 +961,11 @@ def run_task(task: Task, cfg: dict, args: argparse.Namespace) -> str:
     if cfg["stream_output"]:
         print("live output: [thinking] model reasoning, [assistant] its reply, "
               "[tool] every command/edit it runs and its result")
+    if prior_note:
+        print(f"[pi] handed to the model:\n{prior_note}")
     if args.dry_run:
         show(" ".join(f'"{part}"' if " " in part else part for part in cmd))
-        return TODO
+        return Attempt(TODO, "dry run", [], "", 0)
 
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     log_path = LOGS_DIR / f"{task.slug}-run{attempt}.log"
@@ -726,15 +998,23 @@ def run_task(task: Task, cfg: dict, args: argparse.Namespace) -> str:
         pass
 
     output, errput, assistant, transcript, timed_out, json_mode = stream_pi_process(proc, cfg)
+    # The prompt is recorded too: a retry is only reviewable if you can see what the
+    # previous failure was handed to the model.
     log_path.write_text(
-        f"exit: {proc.returncode}\n\n--- live transcript ---\n{transcript}\n"
+        f"exit: {proc.returncode}\n\n--- prompt (stdin) ---\n{stdin_text}\n"
+        f"\n--- live transcript ---\n{transcript}\n"
         f"\n--- stdout (raw) ---\n{output}\n\n--- stderr ---\n{errput}\n",
         encoding="utf-8",
     )
     if timed_out:
-        write_task(task, FAILED, [f"{stamp} attempt {attempt}: timed out after {cfg['timeout_seconds']}s"])
-        print(f"{task.slug}: failed (timeout after {cfg['timeout_seconds']}s)")
-        return FAILED
+        print(f"{task.slug}: timed out after {cfg['timeout_seconds']}s")
+        return Attempt(
+            FAILED,
+            f"timed out after {cfg['timeout_seconds']}s",
+            [],
+            log_path.name,
+            proc.returncode,
+        )
 
     # Prefer the authoritative assistant text for the STATUS line. In JSON mode the raw
     # stream contains the same text as escaped JSON, so it is only a last resort.
@@ -750,11 +1030,89 @@ def run_task(task: Task, cfg: dict, args: argparse.Namespace) -> str:
 
     tail = [line.strip() for line in (assistant or output).strip().splitlines() if line.strip()]
     tail = tail[-cfg["log_tail_lines"]:]
-    entries = [f"{stamp} attempt {attempt}: status={status} exit={proc.returncode} log={log_path.name} {note}".strip()]
-    entries += [f"  {line}" for line in tail]
-    write_task(task, status, entries)
-    print(f"{task.slug}: {status} (exit {proc.returncode}, log: {log_path.relative_to(REPO).as_posix()})")
-    return status
+    print(f"{task.slug}: model reported {status} (exit {proc.returncode}, log: "
+          f"{log_path.relative_to(REPO).as_posix()})")
+    return Attempt(status, note, tail, log_path.name, proc.returncode)
+
+
+def run_task(task: Task, cfg: dict, args: argparse.Namespace) -> str:
+    """Run one task, looping on that same task until the harness checks pass.
+
+    A session that claims DONE is not enough: the runner re-runs verify_commands itself
+    (and, with require_tests, checks that production changes came with test changes). If a
+    check fails, the task stays open and a fresh Pi session gets it back together with the
+    failing output, until max_attempts is used up.
+    """
+    baseline = changed_files()
+    max_attempts = max(1, cfg["max_attempts"])
+    prior_note = ""
+    rounds = 0
+
+    while True:
+        rounds += 1
+        current = read_task(task.path)
+        attempt = current.attempts + 1
+        if rounds > max_attempts:
+            # Cannot happen while write_task increments attempts; it keeps this loop bounded
+            # even if a task file was edited by hand mid-run.
+            print(f"{current.slug}: stopped after {rounds - 1} attempt(s)", file=sys.stderr)
+            return FAILED
+        result = run_attempt(current, cfg, args, attempt, prior_note)
+        if args.dry_run:
+            return TODO
+
+        stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        if result.status == BLOCKED:
+            entries = [f"{stamp} attempt {attempt}: status=blocked exit={result.exit_code} "
+                       f"log={result.log_name} {result.note}".strip()]
+            entries += [f"  {line}" for line in result.tail]
+            write_task(current, BLOCKED, entries)
+            return BLOCKED
+
+        problems: list[str] = []
+        if result.status == DONE:
+            missing = test_coverage_note(current, cfg, baseline)
+            if missing:
+                problems.append(missing)
+            problems += run_verification(current, cfg)
+        else:
+            problems.append(f"the model reported {result.status.upper()}: {result.note or 'no detail'}")
+
+        if not problems:
+            entries = [f"{stamp} attempt {attempt}: status=done exit={result.exit_code} "
+                       f"log={result.log_name} {result.note}".strip()]
+            entries += [f"  {line}" for line in result.tail]
+            write_task(current, DONE, entries)
+            if cfg["verify_commands"] or cfg["require_tests"]:
+                print(f"{current.slug}: done (attempt {attempt} passed the harness checks)")
+            else:
+                print(f"{current.slug}: done (attempt {attempt}; no harness checks configured)")
+            dest = archive_task(current)
+            print(f"{current.slug}: archived to {dest.relative_to(REPO).as_posix()}")
+            return DONE
+
+        exhausted = rounds >= max_attempts
+        next_status = FAILED if exhausted else TODO
+        reason = "; ".join(problems)
+        entries = [f"{stamp} attempt {attempt}: status={next_status} "
+                   f"(model={result.status}) exit={result.exit_code} log={result.log_name} {reason}".strip()]
+        entries += [f"  check: {problem}" for problem in problems]
+        entries += [f"  {line}" for line in result.tail]
+        write_task(current, next_status, entries)
+
+        if exhausted:
+            print(f"{current.slug}: failed after {attempt} attempt(s) - {reason[:300]}")
+            return FAILED
+
+        print(f"{current.slug}: checks failed on attempt {attempt}; re-running the same task "
+              f"({max_attempts - rounds} session(s) left for this task)")
+        prior_note = (
+            f"Attempt {attempt} of this task did not pass the harness checks:\n"
+            + "\n".join(f"- {problem}" for problem in problems)[:2000]
+            + "\nFix the code and/or the tests, re-run the verification commands yourself, "
+            "and only report STATUS: DONE once they are green."
+        )
 
 
 def main() -> int:
@@ -766,7 +1124,33 @@ def main() -> int:
     parser.add_argument("--model", help="Pi model, e.g. sonnet:high")
     parser.add_argument("--thinking", help="off|minimal|low|medium|high|xhigh|max")
     parser.add_argument("--tools", help="Pi tool allowlist, e.g. read,grep,find,ls,edit,write")
-    parser.add_argument("--timeout", type=int, help="seconds allowed per task")
+    parser.add_argument("--timeout", type=int, help="seconds allowed per Pi session")
+    parser.add_argument(
+        "--max-attempts",
+        type=int,
+        help="how many Pi sessions one task may use before it is marked failed (default 3)",
+    )
+    parser.add_argument(
+        "--verify",
+        nargs="+",
+        metavar="CMD",
+        help="test commands the runner re-runs after every attempt; overrides verify_commands",
+    )
+    parser.add_argument(
+        "--no-verify",
+        action="store_true",
+        help="skip the runner-side test commands (the model is then trusted on its own STATUS)",
+    )
+    parser.add_argument(
+        "--require-tests",
+        action="store_true",
+        help="fail an attempt that changed production code without touching a test file",
+    )
+    parser.add_argument(
+        "--no-require-tests",
+        action="store_true",
+        help="allow production changes with no test changes",
+    )
     parser.add_argument("--ephemeral", action="store_true", help="use --no-session (session is not persisted)")
     parser.add_argument("--offline", action="store_true", help="pass --offline to Pi (no model catalog refresh)")
     parser.add_argument(
@@ -810,6 +1194,16 @@ def main() -> int:
             cfg[key] = value
     if args.timeout:
         cfg["timeout_seconds"] = args.timeout
+    if args.max_attempts:
+        cfg["max_attempts"] = args.max_attempts
+    if args.verify:
+        cfg["verify_commands"] = [cmd for cmd in args.verify if cmd.strip()]
+    if args.no_verify:
+        cfg["verify_commands"] = []
+    if args.require_tests:
+        cfg["require_tests"] = True
+    if args.no_require_tests:
+        cfg["require_tests"] = False
     if args.ephemeral:
         cfg["ephemeral_sessions"] = True
     if args.offline:

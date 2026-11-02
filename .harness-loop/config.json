@@ -10,5 +10,19 @@
   "project_trust": "approve",
   "stream_output": true,
   "stream_thinking": true,
-  "stream_raw": false
+  "stream_raw": false,
+  "max_attempts": 3,
+  "verify_commands": [
+    "./gradlew testDebugUnitTest"
+  ],
+  "verify_timeout_seconds": 900,
+  "verify_env_script": "set-env-variables",
+  "require_tests": true,
+  "source_globs": [
+    "app/src/main/*"
+  ],
+  "test_globs": [
+    "app/src/test/*",
+    "app/src/androidTest/*"
+  ]
 }

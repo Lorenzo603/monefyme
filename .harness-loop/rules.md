@@ -11,11 +11,21 @@ Repo: Android mobile budgeting app.
    patterns/conventions instead of inventing new ones.
 3. Make the smallest change that fully satisfies the task. Prefer editing existing files
    over adding new abstractions; no speculative refactors of untouched code.
-4. Verify with the test commands, run from the repo root:
+4. Every behaviour change must come with tests: add or update an automated test that covers
+   what you changed (unit test for logic, instrumentation/UI test where only the running app
+   can prove it) before you report DONE.
+5. Run the tests yourself and iterate until they are green. Never report DONE on a failing
+   or skipped test run.
+6. The harness verifies independently: after your session the runner re-runs the project test
+   commands from the repo root and checks that production changes came with test changes. If a
+   check fails the task is handed back to a fresh session that gets the failing output, so the
+   same task loops until the tests pass or the attempt limit is reached.
+7. Verify with the test commands, run from the repo root:
    - `./gradlew testDebugUnitTest`
    - `./gradlew connectedDebugAndroidTest` (requires running emulator)
-5. If a verification command fails for reasons unrelated to your change, report it instead
-   of trying to fix unrelated code.
+8. If a verification command fails for reasons unrelated to your change, report it instead
+   of trying to fix unrelated code, and say so on your STATUS line — the harness will otherwise
+   keep re-running the same task on an environmental failure.
 </workflow>
 
 <rules>
@@ -29,6 +39,8 @@ Repo: Android mobile budgeting app.
 - Do not invent data. Diagram entities, relationships, IDs and attributes must come from
   `supabase/data/diagram.json` or explicit user-supplied values.
 - Keep IDs and types consistent with the schemas in `supabase/data/`.
+- Do not delete, weaken or `@Ignore` an existing test just to make a verification pass; fix
+  the code or the test's actual defect.
 </rules>
 
 <finish>
