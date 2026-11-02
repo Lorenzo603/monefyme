@@ -9,14 +9,13 @@ Clicking on balance box brings you to list of transactions for the current month
     - click CHANGE CATEGORY instead of CHOOSE CATEGORy
 Clicking on pie chart opens the balance transaction list with that category already open    
 
-spacing in pie chart to display icon percentages better, bigger icon percentages size
+MANUAL 
+- spacing in pie chart to display icon percentages better, bigger icon percentages size
+- Reduce font size of decimal cents points a lot --> increase a bit
 
-Reduce font size of decimal cents points a lot --> increase a bit
-
-add expense screen, click date to select date of transaction
 
 Manage categories (edit and delete) from sidebar
 
-Automatically close new category modal after clicking save does not work, but only from category picker, from sidebar it works
+
 
 When adding a transaction of a new category that is not in the pie chart, that category is added in the pie chart with default color and default icon instead of the ones that have been selected by the user
