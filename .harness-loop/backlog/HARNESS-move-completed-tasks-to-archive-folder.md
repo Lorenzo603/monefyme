@@ -1,0 +1,1 @@
+When a task is completed, move it to the `.harness-loop/archived` folder
