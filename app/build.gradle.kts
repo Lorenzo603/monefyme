@@ -32,6 +32,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    testOptions {
+        // Plain JVM unit tests only touch android.* exception types; let the stubbed
+        // android.jar return defaults instead of throwing "not mocked".
+        unitTests.isReturnDefaultValues = true
+    }
+
     kotlinOptions {
         jvmTarget = "17"
     }
