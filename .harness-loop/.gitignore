@@ -1,0 +1,4 @@
+sessions/
+logs/
+__pycache__/
+*.pyc

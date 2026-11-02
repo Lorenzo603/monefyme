@@ -1,0 +1,11 @@
+{
+  "pi_bin": "pi",
+  "model": "",
+  "thinking": "medium",
+  "tools": "",
+  "timeout_seconds": 1500,
+  "log_tail_lines": 40,
+  "ephemeral_sessions": false,
+  "offline": false,
+  "project_trust": "approve"
+}
