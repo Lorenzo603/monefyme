@@ -7,4 +7,5 @@ depends_on: nothing
 
 ## Task
 
-Clicking on a specific section of the pie chart opens the transaction history list with that category already open
+Clicking on a specific section of the pie chart should open the transaction history list with that specific category already expanded
+
