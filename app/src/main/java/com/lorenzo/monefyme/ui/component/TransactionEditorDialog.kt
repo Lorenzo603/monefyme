@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -50,6 +51,8 @@ fun TransactionEditorDialog(
     ) -> Boolean,
     onDelete: suspend (transactionId: Long) -> Unit,
 ) {
+    var showCategoryPicker by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf(existing?.categoryName ?: "") }
     var dateText by rememberSaveable(existing?.id) {
         mutableStateOf(existing?.date?.let(::formatDate) ?: formatDate(LocalDate.now()))
     }
@@ -75,10 +78,28 @@ fun TransactionEditorDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(
-                text = if (existing == null) "Add transaction" else "Edit transaction",
-                style = MaterialTheme.typography.titleLarge,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = if (existing == null) "Add transaction" else "Edit transaction",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                if (existing != null) {
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                onDelete(existing.id)
+                                onDismiss()
+                            }
+                        },
+                    ) {
+                        Text("Delete", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
         },
         text = {
             Column(
@@ -143,6 +164,12 @@ fun TransactionEditorDialog(
                         )
                     }
                 }
+                TextButton(
+                    onClick = { showCategoryPicker = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("CHANGE CATEGORY")
+                }
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
@@ -182,22 +209,55 @@ fun TransactionEditorDialog(
             }
         },
         dismissButton = {
-            Row {
-                if (existing != null) {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+
+    if (showCategoryPicker) {
+        CategoryPickerDialog(
+            categories = sortedCategories,
+            currentCategory = existing?.categoryName ?: "",
+            onDismiss = { showCategoryPicker = false },
+            onCategorySelected = { selectedCategory = it; showCategoryPicker = false },
+        )
+    }
+}
+
+@Composable
+private fun CategoryPickerDialog(
+    categories: List<String>,
+    currentCategory: String,
+    onDismiss: () -> Unit,
+    onCategorySelected: (String) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Select Category",
+                style = MaterialTheme.typography.titleLarge,
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                categories.forEach { category ->
                     TextButton(
-                        onClick = {
-                            scope.launch {
-                                onDelete(existing.id)
-                                onDismiss()
-                            }
-                        },
+                        onClick = { onCategorySelected(category) },
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Delete")
+                        Text(category)
                     }
                 }
-                TextButton(onClick = onDismiss) {
-                    Text("Cancel")
-                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         },
     )

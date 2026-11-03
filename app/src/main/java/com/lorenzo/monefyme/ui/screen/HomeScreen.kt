@@ -28,8 +28,12 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Menu
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,8 +52,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -77,9 +83,10 @@ import kotlinx.coroutines.flow.map
 @Composable
 fun HomeScreen(
     viewModel: MainViewModel,
-    onOpenTransactions: () -> Unit,
+    onOpenTransactionHistory: () -> Unit,
     onOpenRestore: () -> Unit,
     onAddTransaction: (TransactionType) -> Unit,
+    onOpenTransactionHistorySwipe: () -> Unit,
 ) {
     val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val currentMonth = remember { YearMonth.now() }
@@ -221,12 +228,14 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            IconButton(onClick = onOpenTransactions) {
+            IconButton(
+                onClick = onOpenRestore,
+                modifier = Modifier.size(40.dp),
+            ) {
                 Icon(
-                    imageVector = Icons.Outlined.Menu,
-                    contentDescription = "Open transaction list",
+                    imageVector = Icons.Outlined.Restore,
+                    contentDescription = "Open restore",
                     tint = Color(0xFF7CC8A4),
-                    modifier = Modifier.size(40.dp),
                 )
             }
             Surface(
@@ -235,7 +244,13 @@ fun HomeScreen(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 10.dp)
-                    .height(50.dp),
+                    .height(50.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {
+                        onOpenTransactionHistory()
+                    },
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
@@ -250,12 +265,14 @@ fun HomeScreen(
                     )
                 }
             }
-            IconButton(onClick = onOpenRestore) {
+            IconButton(
+                onClick = onOpenRestore,
+                modifier = Modifier.size(40.dp),
+            ) {
                 Icon(
-                    imageVector = Icons.Outlined.Menu,
+                    imageVector = Icons.Outlined.Restore,
                     contentDescription = "Open restore",
                     tint = Color(0xFF7CC8A4),
-                    modifier = Modifier.size(40.dp),
                 )
             }
         }
@@ -317,6 +334,8 @@ fun HomeScreen(
             CategoriesSidebar(
                 categories = allCategories,
                 onAddCategory = viewModel::saveCategory,
+                onEditCategory = viewModel::updateCategory,
+                onDeleteCategory = viewModel::deleteCategory,
                 onClose = { sidebarOpen = false },
             )
         }

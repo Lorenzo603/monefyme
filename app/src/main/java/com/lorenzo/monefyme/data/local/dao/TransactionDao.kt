@@ -37,7 +37,9 @@ interface TransactionDao {
         """
         SELECT
             c.displayName AS categoryName,
-            SUM(t.amountCents) AS totalCents
+            SUM(t.amountCents) AS totalCents,
+            c.colorArgb AS colorArgb,
+            c.iconName AS icon
         FROM transactions t
         INNER JOIN categories c ON c.id = t.categoryId
         WHERE t.dateEpochDay BETWEEN :startEpochDay AND :endEpochDay

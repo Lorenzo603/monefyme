@@ -156,6 +156,32 @@ class MainViewModel(
         }
     }
 
+    suspend fun updateCategory(categoryId: Long, displayName: String, iconName: String, colorArgb: Int): Boolean {
+        if (displayName.isBlank()) {
+            _message.value = "Category name cannot be blank."
+            return false
+        }
+        return try {
+            val updated = repository.updateCategory(categoryId, displayName, iconName, colorArgb)
+            _message.value = if (updated) "Category updated." else "Could not update category."
+            updated
+        } catch (e: Exception) {
+            _message.value = "Error updating category."
+            false
+        }
+    }
+
+    suspend fun deleteCategory(categoryId: Long): Boolean {
+        return try {
+            val deleted = repository.deleteCategory(categoryId)
+            _message.value = if (deleted) "Category deleted." else "Could not delete category."
+            deleted
+        } catch (e: Exception) {
+            _message.value = "Error deleting category."
+            false
+        }
+    }
+
     suspend fun deleteTransaction(transactionId: Long) {
         repository.deleteTransaction(transactionId)
         _message.value = "Transaction deleted."

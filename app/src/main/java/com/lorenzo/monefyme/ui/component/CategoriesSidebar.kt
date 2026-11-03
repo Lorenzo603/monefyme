@@ -31,6 +31,8 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -83,13 +85,22 @@ private val colorPalette = listOf(
 fun CategoriesSidebar(
     categories: List<CategoryItem>,
     onAddCategory: suspend (displayName: String, iconName: String, colorArgb: Int) -> Boolean,
+    onEditCategory: suspend (categoryId: Long, displayName: String, iconName: String, colorArgb: Int) -> Boolean,
+    onDeleteCategory: suspend (categoryId: Long) -> Boolean,
     onClose: () -> Unit,
+    onOpenRestore: () -> Unit = {},
 ) {
     var showCategories by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf<CategoryItem?>(null) }
+    var showEditDialog by remember { mutableStateOf(false) }
 
     BackHandler(enabled = showCategories) {
-        showCategories = false
+        if (selectedCategory != null) {
+            selectedCategory = null
+        } else {
+            showCategories = false
+        }
     }
 
     Surface(
@@ -106,11 +117,18 @@ fun CategoriesSidebar(
                 onClose = onClose,
             )
             if (!showCategories) {
-                MenuBody(onOpenCategories = { showCategories = true })
+                MenuBody(
+                    onOpenCategories = { showCategories = true },
+                    onOpenRestore = onOpenRestore,
+                )
             } else {
                 CategoriesBody(
                     categories = categories,
                     onAddCategory = { showAddDialog = true },
+                    onCategoryClick = { category ->
+                        selectedCategory = category
+                        showEditDialog = true
+                    },
                 )
             }
         }
@@ -122,6 +140,32 @@ fun CategoriesSidebar(
             onSave = { name, iconName, argb ->
                 val success = onAddCategory(name, iconName, argb)
                 if (success) showAddDialog = false
+                success
+            },
+        )
+    }
+
+    if (showEditDialog && selectedCategory != null) {
+        EditCategoryDialog(
+            category = selectedCategory!!,
+            onDismiss = {
+                showEditDialog = false
+                selectedCategory = null
+            },
+            onUpdate = { categoryId, displayName, iconName, colorArgb ->
+                val success = onEditCategory(categoryId, displayName, iconName, colorArgb)
+                if (success) {
+                    showEditDialog = false
+                    selectedCategory = null
+                }
+                success
+            },
+            onDelete = { categoryId ->
+                val success = onDeleteCategory(categoryId)
+                if (success) {
+                    showEditDialog = false
+                    selectedCategory = null
+                }
                 success
             },
         )
@@ -164,7 +208,10 @@ private fun SidebarHeader(
 }
 
 @Composable
-private fun MenuBody(onOpenCategories: () -> Unit) {
+private fun MenuBody(
+    onOpenCategories: () -> Unit,
+    onOpenRestore: () -> Unit,
+) {
     Column {
         HorizontalDivider(color = AppDivider)
         Row(
@@ -188,6 +235,27 @@ private fun MenuBody(onOpenCategories: () -> Unit) {
             )
         }
         HorizontalDivider(color = AppDivider)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpenRestore)
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = "Restore",
+                style = MaterialTheme.typography.bodyLarge,
+                color = AppTextPrimary,
+                fontWeight = FontWeight.Medium,
+            )
+            Icon(
+                Icons.Outlined.Restore,
+                contentDescription = null,
+                tint = AppGreen,
+            )
+        }
+        HorizontalDivider(color = AppDivider)
     }
 }
 
@@ -195,12 +263,13 @@ private fun MenuBody(onOpenCategories: () -> Unit) {
 private fun CategoriesBody(
     categories: List<CategoryItem>,
     onAddCategory: () -> Unit,
+    onCategoryClick: (CategoryItem) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         HorizontalDivider(color = AppDivider)
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(categories, key = { it.id }) { category ->
-                CategoryRow(category)
+                CategoryRow(category, onClick = { onCategoryClick(category) })
                 HorizontalDivider(color = AppDivider)
             }
             if (categories.isEmpty()) {
@@ -245,11 +314,12 @@ private fun CategoriesBody(
 }
 
 @Composable
-private fun CategoryRow(item: CategoryItem) {
+private fun CategoryRow(item: CategoryItem, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -437,6 +507,204 @@ internal fun AddCategoryDialog(
                         Text(
                             text = "Save",
                             color = if (name.isNotBlank() && !saving) AppGreen else AppTextMuted,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun EditCategoryDialog(
+    category: CategoryItem,
+    onDismiss: () -> Unit,
+    onUpdate: suspend (categoryId: Long, displayName: String, iconName: String, colorArgb: Int) -> Boolean,
+    onDelete: suspend (categoryId: Long) -> Boolean,
+) {
+    var name by remember { mutableStateOf(category.displayName) }
+    var selectedIconName by remember { mutableStateOf(category.iconName ?: CategoryIconRegistry.all.first().name) }
+    var selectedColor by remember {
+        mutableStateOf(
+            if (category.colorArgb != null) Color(category.colorArgb)
+            else colorPalette.first()
+        )
+    }
+    var saving by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = AppBackground,
+        ) {
+            Column {
+                // Green header
+                Surface(
+                    color = AppGreen,
+                    shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Spacer(Modifier.width(48.dp))
+                        Text(
+                            text = "Edit Category",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Outlined.Close, contentDescription = "Close", tint = Color.White)
+                        }
+                    }
+                }
+
+                // Form
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    TextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        placeholder = { Text("Category name", color = AppTextMuted) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = AppGreen,
+                            unfocusedIndicatorColor = Color(0xFFA4B0B1),
+                            focusedTextColor = AppTextPrimary,
+                            unfocusedTextColor = AppTextPrimary,
+                            cursorColor = AppGreen,
+                        ),
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            "Icon",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = AppTextSecondary,
+                        )
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(5),
+                            modifier = Modifier.height(200.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            items(CategoryIconRegistry.all, key = { it.name }) { option ->
+                                val isSelected = option.name == selectedIconName
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(
+                                            if (isSelected) selectedColor else AppBackground,
+                                        )
+                                        .border(
+                                            width = if (isSelected) 1.5.dp else 1.dp,
+                                            color = if (isSelected) selectedColor else AppDivider,
+                                            shape = RoundedCornerShape(6.dp),
+                                        )
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                        ) { selectedIconName = option.name },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = option.vector,
+                                        contentDescription = option.name,
+                                        tint = if (isSelected) Color.White else AppTextSecondary,
+                                        modifier = Modifier.size(22.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            "Color",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = AppTextSecondary,
+                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(colorPalette) { color ->
+                                val isSelected = color == selectedColor
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(color)
+                                        .then(
+                                            if (isSelected) {
+                                                Modifier.border(2.5.dp, AppGreen, CircleShape)
+                                            } else {
+                                                Modifier
+                                            },
+                                        )
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                        ) { selectedColor = color },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Footer buttons
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                saving = true
+                                val success = onUpdate(category.id, name.trim(), selectedIconName, selectedColor.toArgb())
+                                if (success) onDismiss()
+                                saving = false
+                            }
+                        },
+                        enabled = name.isNotBlank() && !saving,
+                    ) {
+                        Text(
+                            text = "Save",
+                            color = if (name.isNotBlank() && !saving) AppGreen else AppTextMuted,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                saving = true
+                                val success = onDelete(category.id)
+                                if (success) onDismiss()
+                                saving = false
+                            }
+                        },
+                    ) {
+                        Icon(
+                            Icons.Outlined.Delete,
+                            contentDescription = "Delete",
+                            tint = Color(0xFFF27982),
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = "Delete",
+                            color = Color(0xFFF27982),
                             fontWeight = FontWeight.SemiBold,
                         )
                     }

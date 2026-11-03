@@ -109,6 +109,55 @@ class BudgetRepositoryImplTest {
         assertFalse(repository.saveCategory("  FOOD ", "ShoppingCart", 0))
     }
 
+    // --- update category -------------------------------------------------------
+
+    @Test
+    fun updateCategoryUpdatesExistingCategory() = runBlocking {
+        val id = seedCategory("Food", iconName = "ShoppingCart", colorArgb = 0xFFDE6CA5.toInt())
+
+        assertTrue(repository.updateCategory(id, "Groceries", "ShoppingCart", 0xFFA5A5A5.toInt()))
+
+        val updated = categoryDao.findById(id)
+        assertNotNull(updated)
+        assertEquals("Groceries", updated!!.displayName)
+        assertEquals("groceries", updated.normalizedName)
+        assertEquals("ShoppingCart", updated.iconName)
+        assertEquals(0xFFA5A5A5.toInt(), updated.colorArgb)
+    }
+
+    @Test
+    fun updateCategoryReturnsFalseForUnknownId() = runBlocking {
+        assertFalse(repository.updateCategory(999L, "New Name", "ShoppingCart", 0xFF112233.toInt()))
+    }
+
+    @Test
+    fun updateCategoryNormalizesName() = runBlocking {
+        val id = seedCategory("Food")
+
+        assertTrue(repository.updateCategory(id, "  Fast   Food  ", "ShoppingCart", 0))
+
+        val updated = categoryDao.findById(id)
+        assertNotNull(updated)
+        assertEquals("Fast Food", updated!!.displayName)
+        assertEquals("fast food", updated.normalizedName)
+    }
+
+    // --- delete category -------------------------------------------------------
+
+    @Test
+    fun deleteCategoryRemovesExistingCategory() = runBlocking {
+        val id = seedCategory("Food")
+
+        assertTrue(repository.deleteCategory(id))
+
+        assertNull(categoryDao.findById(id))
+    }
+
+    @Test
+    fun deleteCategoryReturnsFalseForUnknownId() = runBlocking {
+        assertFalse(repository.deleteCategory(999L))
+    }
+
     // --- transactions ----------------------------------------------------------
 
     @Test(expected = IllegalArgumentException::class)
@@ -283,11 +332,33 @@ class BudgetRepositoryImplTest {
         override suspend fun findByNormalizedName(normalizedName: String): CategoryEntity? =
             stored.firstOrNull { it.normalizedName == normalizedName }
 
+        override suspend fun findById(categoryId: Long): CategoryEntity? =
+            stored.firstOrNull { it.id == categoryId }
+
         override suspend fun insert(category: CategoryEntity): Long {
             if (stored.any { it.normalizedName == category.normalizedName }) return -1L
             val entity = category.copy(id = nextId++)
             stored += entity
             return entity.id
+        }
+
+        override suspend fun update(categoryId: Long, normalizedName: String, displayName: String, iconName: String?, colorArgb: Int?): Int {
+            val index = stored.indexOfFirst { it.id == categoryId }
+            if (index < 0) return 0
+            stored[index] = stored[index].copy(
+                normalizedName = normalizedName,
+                displayName = displayName,
+                iconName = iconName,
+                colorArgb = colorArgb,
+            )
+            return 1
+        }
+
+        override suspend fun deleteById(categoryId: Long): Int {
+            val index = stored.indexOfFirst { it.id == categoryId }
+            if (index < 0) return 0
+            stored.removeAt(index)
+            return 1
         }
     }
 

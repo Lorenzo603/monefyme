@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lorenzo.monefyme.data.model.ExpenseSlice
+import com.lorenzo.monefyme.ui.category.CategoryIconRegistry
 import com.lorenzo.monefyme.ui.category.DefaultCategories
 import com.lorenzo.monefyme.ui.util.currencyAnnotatedString
 import com.lorenzo.monefyme.ui.util.centsToDisplay
@@ -90,7 +91,9 @@ fun ExpensePieChart(
             SliceMeta(
                 categoryName = slice.categoryName,
                 amountCents = slice.totalCents,
-                color = DefaultCategories.findByName(slice.categoryName)?.color ?: DefaultCategories.fallbackColor,
+                color = slice.colorArgb?.let { Color(it.toLong() and 0xFFFFFFFFL) } 
+                    ?: DefaultCategories.findByName(slice.categoryName)?.color 
+                    ?: DefaultCategories.fallbackColor,
                 startAngle = startAngle,
                 sweepAngle = sweep,
                 midAngle = mid,
@@ -164,9 +167,24 @@ fun ExpensePieChart(
 
         val assignedSlots = assignSlotsToActiveCategories(activeConnectors, slots)
         val activeKeys = activeConnectors.map { it.categoryKey }.toSet()
+        
+        // Build a map of category keys to their visuals from the original slices
+        val sliceVisualsByCategory = slices.associateBy(
+            { slice -> normalizedCategory(slice.categoryName) },
+            { slice ->
+                val iconFromSlice = slice.icon?.let { iconStr -> CategoryIconRegistry.findByName(iconStr) }
+                val colorFromSlice = slice.colorArgb?.let { colorInt -> Color(colorInt.toLong() and 0xFFFFFFFFL) }
+                CategoryVisual(
+                    categoryKey = normalizedCategory(slice.categoryName),
+                    icon = iconFromSlice ?: DefaultCategories.findByName(slice.categoryName)?.icon ?: DefaultCategories.fallbackIcon,
+                    color = colorFromSlice ?: DefaultCategories.findByName(slice.categoryName)?.color ?: DefaultCategories.fallbackColor,
+                )
+            }
+        )
+        
         val activePlacements = assignedSlots.map { assigned ->
             IconPlacement(
-                visual = categoryVisualFor(assigned.categoryKey),
+                visual = sliceVisualsByCategory[assigned.categoryKey] ?: categoryVisualFor(assigned.categoryKey),
                 slotIndex = assigned.slot.index,
                 xFactor = assigned.slot.xFactor,
                 yFactor = assigned.slot.yFactor,

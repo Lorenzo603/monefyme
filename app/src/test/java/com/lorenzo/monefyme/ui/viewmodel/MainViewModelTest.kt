@@ -250,6 +250,51 @@ class MainViewModelTest {
         assertEquals("Error saving category.", vm.message.value)
     }
 
+    // --- update category -------------------------------------------------------
+
+    @Test
+    fun updateCategoryRejectsBlankName() = runTest(testDispatcher) {
+        val vm = viewModel()
+        assertFalse(vm.updateCategory(1L, "  ", "Star", 0))
+        assertEquals("Category name cannot be blank.", vm.message.value)
+    }
+
+    @Test
+    fun updateCategorySuccessProducesMessage() = runTest(testDispatcher) {
+        val vm = viewModel()
+        assertTrue(vm.updateCategory(1L, "Groceries", "ShoppingCart", 1))
+        assertEquals("Category updated.", vm.message.value)
+        assertEquals(1, repository.updatedCategories.single().categoryId)
+    }
+
+    @Test
+    fun updateCategoryReportsUnexpectedFailure() = runTest(testDispatcher) {
+        val vm = viewModel()
+        repository.updateCategoryError = IllegalStateException("boom")
+
+        assertFalse(vm.updateCategory(1L, "Food", "ShoppingCart", 1))
+        assertEquals("Error updating category.", vm.message.value)
+    }
+
+    // --- delete category -------------------------------------------------------
+
+    @Test
+    fun deleteCategorySuccessProducesMessage() = runTest(testDispatcher) {
+        val vm = viewModel()
+        assertTrue(vm.deleteCategory(42L))
+        assertEquals("Category deleted.", vm.message.value)
+        assertEquals(listOf(42L), repository.deletedCategoryIds)
+    }
+
+    @Test
+    fun deleteCategoryReportsUnexpectedFailure() = runTest(testDispatcher) {
+        val vm = viewModel()
+        repository.deleteCategoryError = IllegalStateException("boom")
+
+        assertFalse(vm.deleteCategory(42L))
+        assertEquals("Error deleting category.", vm.message.value)
+    }
+
     // --- CSV import ------------------------------------------------------------
 
     @Test
@@ -325,12 +370,19 @@ class MainViewModelTest {
         val savedDrafts = mutableListOf<Pair<Long?, TransactionDraft>>()
         val deletedIds = mutableListOf<Long>()
         val savedCategories = mutableListOf<Triple<String, String, Int>>()
+        data class CategoryUpdate(val categoryId: Long, val displayName: String, val iconName: String, val colorArgb: Int)
+        val updatedCategories = mutableListOf<CategoryUpdate>()
+        val deletedCategoryIds = mutableListOf<Long>()
         val importedContent = mutableListOf<ByteArray>()
 
         var saveTransactionResult: Boolean? = null
         var saveTransactionError: Throwable? = null
         var saveCategoryResult: Boolean? = null
         var saveCategoryError: Throwable? = null
+        var updateCategoryResult: Boolean? = null
+        var updateCategoryError: Throwable? = null
+        var deleteCategoryResult: Boolean? = null
+        var deleteCategoryError: Throwable? = null
         var csvImportResult: CsvImportResult? = null
         var csvImportError: Throwable? = null
 
@@ -353,6 +405,18 @@ class MainViewModelTest {
             saveCategoryError?.let { throw it }
             savedCategories += Triple(displayName, iconName, colorArgb)
             return saveCategoryResult ?: true
+        }
+
+        override suspend fun updateCategory(categoryId: Long, displayName: String, iconName: String, colorArgb: Int): Boolean {
+            updateCategoryError?.let { throw it }
+            updatedCategories += CategoryUpdate(categoryId, displayName, iconName, colorArgb)
+            return updateCategoryResult ?: true
+        }
+
+        override suspend fun deleteCategory(categoryId: Long): Boolean {
+            deleteCategoryError?.let { throw it }
+            deletedCategoryIds += categoryId
+            return deleteCategoryResult ?: true
         }
 
         override suspend fun saveTransaction(transactionId: Long?, draft: TransactionDraft): Boolean {

@@ -30,6 +30,8 @@ class MainViewModelFactoryTest {
         override fun observeMonthTransactions(month: YearMonth): Flow<List<TransactionListItem>> = emptyFlow()
         override fun observeMonthExpenseSlices(month: YearMonth): Flow<List<ExpenseSlice>> = emptyFlow()
         override suspend fun saveCategory(displayName: String, iconName: String, colorArgb: Int) = true
+        override suspend fun updateCategory(categoryId: Long, displayName: String, iconName: String, colorArgb: Int) = true
+        override suspend fun deleteCategory(categoryId: Long) = true
         override suspend fun saveTransaction(transactionId: Long?, draft: TransactionDraft) = true
         override suspend fun deleteTransaction(transactionId: Long) {}
         override suspend fun importCsv(inputStream: InputStream): CsvImportResult = CsvImportResult(0, 0, 0, 0)

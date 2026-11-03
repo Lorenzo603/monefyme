@@ -72,6 +72,26 @@ class BudgetRepositoryImpl(
         }
     }
 
+    override suspend fun updateCategory(categoryId: Long, displayName: String, iconName: String, colorArgb: Int): Boolean {
+        return withContext(ioDispatcher) {
+            val updated = categoryDao.update(
+                categoryId = categoryId,
+                normalizedName = normalizeCategoryLookupName(displayName),
+                displayName = normalizeCategoryDisplayName(displayName),
+                iconName = iconName,
+                colorArgb = colorArgb,
+            )
+            updated > 0
+        }
+    }
+
+    override suspend fun deleteCategory(categoryId: Long): Boolean {
+        return withContext(ioDispatcher) {
+            val deleted = categoryDao.deleteById(categoryId)
+            deleted > 0
+        }
+    }
+
     override suspend fun saveTransaction(transactionId: Long?, draft: TransactionDraft): Boolean {
         if (draft.amountCents <= 0) {
             throw IllegalArgumentException("Amount must be greater than zero.")

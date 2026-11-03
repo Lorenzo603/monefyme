@@ -15,6 +15,8 @@ interface BudgetRepository {
     fun observeMonthTransactions(month: YearMonth): Flow<List<TransactionListItem>>
     fun observeMonthExpenseSlices(month: YearMonth): Flow<List<ExpenseSlice>>
     suspend fun saveCategory(displayName: String, iconName: String, colorArgb: Int): Boolean
+    suspend fun updateCategory(categoryId: Long, displayName: String, iconName: String, colorArgb: Int): Boolean
+    suspend fun deleteCategory(categoryId: Long): Boolean
     suspend fun saveTransaction(transactionId: Long?, draft: TransactionDraft): Boolean
     suspend fun deleteTransaction(transactionId: Long)
     suspend fun importCsv(inputStream: InputStream): CsvImportResult
