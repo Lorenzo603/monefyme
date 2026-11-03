@@ -36,9 +36,6 @@ Repo: Android mobile budgeting app.
 - Ask no questions: you cannot get an answer mid-run. If the task is genuinely ambiguous or
   is missing prerequisites, stop, write a `## Questions for the human` section into the task
   file, and report BLOCKED.
-- Do not invent data. Diagram entities, relationships, IDs and attributes must come from
-  `supabase/data/diagram.json` or explicit user-supplied values.
-- Keep IDs and types consistent with the schemas in `supabase/data/`.
 - Do not delete, weaken or `@Ignore` an existing test just to make a verification pass; fix
   the code or the test's actual defect.
 </rules>
