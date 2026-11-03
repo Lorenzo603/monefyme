@@ -18,7 +18,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 
@@ -47,9 +47,10 @@ class MainViewModelFactoryTest {
 
     @Test
     fun createsMainViewModelForItsClass() {
-        val viewModel = MainViewModelFactory(repository).create(MainViewModel::class.java)
+        val factory = MainViewModelFactory(repository)
+        val viewModel = factory.create(MainViewModel::class.java)
 
-        assertTrue(viewModel is MainViewModel)
+        assertNotNull("ViewModel should not be null", viewModel)
     }
 
     @Test(expected = IllegalArgumentException::class)

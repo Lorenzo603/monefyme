@@ -1,13 +1,13 @@
 package com.lorenzo.monefyme.ui.category
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.DirectionsBike
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.BakeryDining
 import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Checkroom
 import androidx.compose.material.icons.outlined.CreditCard
-import androidx.compose.material.icons.outlined.DirectionsBike
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Fastfood
@@ -48,7 +48,7 @@ object CategoryIconRegistry {
         IconOption("Call", Icons.Outlined.Call),
         IconOption("Checkroom", Icons.Outlined.Checkroom),
         IconOption("CreditCard", Icons.Outlined.CreditCard),
-        IconOption("DirectionsBike", Icons.Outlined.DirectionsBike),
+        IconOption("DirectionsBike", Icons.AutoMirrored.Outlined.DirectionsBike),
         IconOption("DirectionsCar", Icons.Outlined.DirectionsCar),
         IconOption("FavoriteBorder", Icons.Outlined.FavoriteBorder),
         IconOption("Fastfood", Icons.Outlined.Fastfood),

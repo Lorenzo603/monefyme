@@ -27,12 +27,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -144,7 +144,7 @@ private fun SidebarHeader(
         ) {
             if (showingCategories) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Outlined.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = Color.White)
                 }
                 Text(
                     text = "Categories",
@@ -166,7 +166,7 @@ private fun SidebarHeader(
 @Composable
 private fun MenuBody(onOpenCategories: () -> Unit) {
     Column {
-        Divider(color = AppDivider)
+        HorizontalDivider(color = AppDivider)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -187,7 +187,7 @@ private fun MenuBody(onOpenCategories: () -> Unit) {
                 tint = AppGreen,
             )
         }
-        Divider(color = AppDivider)
+        HorizontalDivider(color = AppDivider)
     }
 }
 
@@ -197,11 +197,11 @@ private fun CategoriesBody(
     onAddCategory: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        Divider(color = AppDivider)
+        HorizontalDivider(color = AppDivider)
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(categories, key = { it.id }) { category ->
                 CategoryRow(category)
-                Divider(color = AppDivider)
+                HorizontalDivider(color = AppDivider)
             }
             if (categories.isEmpty()) {
                 item {
@@ -214,7 +214,7 @@ private fun CategoriesBody(
                 }
             }
         }
-        Divider(color = AppDivider)
+        HorizontalDivider(color = AppDivider)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
