@@ -32,8 +32,8 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -229,12 +229,14 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             IconButton(
-                onClick = onOpenRestore,
-                modifier = Modifier.size(40.dp),
+                onClick = onOpenTransactionHistory,
+                modifier = Modifier
+                    .size(40.dp)
+                    .testTag("balance_history_left"),
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Restore,
-                    contentDescription = "Open restore",
+                    imageVector = Icons.Outlined.Menu,
+                    contentDescription = "Open transaction history",
                     tint = Color(0xFF7CC8A4),
                 )
             }
@@ -266,12 +268,14 @@ fun HomeScreen(
                 }
             }
             IconButton(
-                onClick = onOpenRestore,
-                modifier = Modifier.size(40.dp),
+                onClick = onOpenTransactionHistory,
+                modifier = Modifier
+                    .size(40.dp)
+                    .testTag("balance_history_right"),
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Restore,
-                    contentDescription = "Open restore",
+                    imageVector = Icons.Outlined.Menu,
+                    contentDescription = "Open transaction history",
                     tint = Color(0xFF7CC8A4),
                 )
             }
@@ -337,6 +341,10 @@ fun HomeScreen(
                 onEditCategory = viewModel::updateCategory,
                 onDeleteCategory = viewModel::deleteCategory,
                 onClose = { sidebarOpen = false },
+                onOpenRestore = {
+                    sidebarOpen = false
+                    onOpenRestore()
+                },
             )
         }
     } // end Box

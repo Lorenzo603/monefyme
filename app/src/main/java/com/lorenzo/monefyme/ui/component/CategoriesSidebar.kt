@@ -55,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -88,7 +89,7 @@ fun CategoriesSidebar(
     onEditCategory: suspend (categoryId: Long, displayName: String, iconName: String, colorArgb: Int) -> Boolean,
     onDeleteCategory: suspend (categoryId: Long) -> Boolean,
     onClose: () -> Unit,
-    onOpenRestore: () -> Unit = {},
+    onOpenRestore: () -> Unit,
 ) {
     var showCategories by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -239,6 +240,7 @@ private fun MenuBody(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onOpenRestore)
+                .testTag("sidebar_restore")
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
