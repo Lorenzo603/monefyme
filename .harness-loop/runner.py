@@ -61,7 +61,7 @@ VALID_TRUST = {"approve", "ignore", "ask"}
 VALID_PROMPT_MODES = {"stdin", "arg"}
 
 # fnmatch is used for the test-presence globs, where `*` also crosses `/`, so
-# "app/src/test/*" matches every file below app/src/test/.
+# "src/test/*" matches every file below src/test/. Set these globs per repo in config.json.
 
 # Live console rendering limits (what the model is thinking/doing/printing).
 TOOL_ARG_CHARS = 400
@@ -85,12 +85,12 @@ DEFAULT_CONFIG = {
     # DONE. A failure sends the same task back to a fresh Pi session (see max_attempts).
     "verify_commands": [],          # shell commands, run from the repo root
     "verify_timeout_seconds": 900,  # per-command timeout
-    "verify_env_script": "",        # e.g. "set-env-variables" -> .ps1/.sh (falls back to .sample)
+    "verify_env_script": "",        # optional repo env-setup script, no extension -> .ps1/.sh (falls back to .sample)
     "max_attempts": 3,              # Pi sessions allowed per task before it is marked failed
     # Require the agent to touch a test file whenever it changed production code.
     "require_tests": False,
-    "source_globs": ["app/src/main/*"],   # production paths that trigger the test requirement
-    "test_globs": ["app/src/test/*", "app/src/androidTest/*"],  # paths that count as tests
+    "source_globs": ["src/main/*"],   # production paths that trigger the test requirement (per repo in config.json)
+    "test_globs": ["src/test/*"],  # paths that count as tests (per repo in config.json)
 }
 
 
@@ -691,7 +691,7 @@ def changed_files() -> set[str] | None:
 
 
 def normalize_command(cmd: str) -> str:
-    """Make a POSIX-style command runnable in this shell (cmd.exe rejects ./gradlew)."""
+    """Make a POSIX-style command runnable in this shell (cmd.exe rejects a leading './')."""
     cmd = (cmd or "").strip()
     if os.name == "nt" and cmd.startswith("./"):
         cmd = ".\\" + cmd[2:]

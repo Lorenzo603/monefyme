@@ -36,7 +36,7 @@ Auth: `export ANTHROPIC_API_KEY=...` (or `pi` with no flag to pick up cached OAu
 ## Run
 
 ```powershell
-cd c:\p\megadiagram
+cd <repo root>          # the runner must be started from the repository root
 python .harness-loop\runner.py --dry-run   # show planned pi calls, change nothing
 python .harness-loop\runner.py --list      # task board
 python .harness-loop\runner.py             # loop until the backlog is empty or blocked
@@ -44,7 +44,7 @@ python .harness-loop\runner.py --limit 3
 python .harness-loop\runner.py --only 02-copy-to-clipboard-button-for-ids --thinking low
 python .harness-loop\runner.py --retry-failed --model claude-sonnet-4.5 --thinking high
 python .harness-loop\runner.py --only 03-add-unit-and-integraton-tests --max-attempts 5
-python .harness-loop\runner.py --verify "./gradlew testDebugUnitTest"
+python .harness-loop\runner.py --verify "<this repo's test command>"   # override verify_commands
 python .harness-loop\runner.py --no-verify        # trust the model's own STATUS line
 ```
 
@@ -82,8 +82,8 @@ session events as they arrive, so the console shows what the model is doing at a
 === 04-csv-backup-restore (attempt 1) ===
 [pi] --- turn 1 ---
 [thinking] The task asks for CSV backup; let me find the existing export code first.
-[tool bash] {"command": "rg -n \"export\" app/src"}
-    -> bash ok 143ms: app/src/main/java/.../ExportActivity.kt:42 ...
+[tool bash] {"command": "rg -n \"export\" src"}
+    -> bash ok 143ms: src/.../ExportService.kt:42 ...
 [assistant] I'll add a CSV writer next to the existing JSON exporter.
 STATUS: DONE added CsvExporter.kt and CsvExporterTest.kt
 ```
@@ -113,8 +113,7 @@ A `STATUS: DONE` line is only a claim; the runner checks it. After an attempt th
 in the repo root and in the same shell:
 
 1. **test-presence check** (`require_tests`): if the attempt changed files matching
-   `source_globs` (default `app/src/main/*`) but no file matching `test_globs`
-   (`app/src/test/*`, `app/src/androidTest/*`), the attempt is rejected — the model had to add
+   `source_globs` but no file matching `test_globs`, the attempt is rejected — the model had to add
    or update a test. Harness/docs-only tasks are exempt because they touch no source glob.
    `*` in these globs also crosses `/`. Uses `git diff --name-only HEAD` plus untracked files,
    measured against the working tree as it was when the task started.
@@ -128,24 +127,27 @@ to `max_attempts` times (default 3, each session is a separate `sessions/` file 
 entry); after that the task is marked `failed` and you can pick it up with `--retry-failed`.
 An attempt that reports `BLOCKED` is never retried — it waits for you.
 
+`config.json` holds the per-repository settings; the generic parts are the defaults in
+`runner.py`. Fill it in from the values recorded in the repository's AGENTS.md:
+
 ```json
 "max_attempts": 3,
-"verify_commands": ["./gradlew testDebugUnitTest"],
+"verify_commands": ["<this repo's test commands, run from the repo root>"],
 "verify_timeout_seconds": 900,
-"verify_env_script": "set-env-variables",
+"verify_env_script": "<optional env-setup script, without extension>",
 "require_tests": true,
-"source_globs": ["app/src/main/*"],
-"test_globs": ["app/src/test/*", "app/src/androidTest/*"]
+"source_globs": ["<paths that count as production code>"],
+"test_globs": ["<paths that count as tests>"]
 ```
 
 `verify_commands` are shell snippets run from the repo root; a leading `./` is rewritten to
-`.\` on Windows. `verify_env_script` dot-sources `set-env-variables.ps1` (`.sh` on macOS/Linux)
-in the same shell as the command, falling back to the committed `.sample` when the real, gitignored
-script is absent — the Android SDK variables are otherwise missing for a runner started from a
-plain terminal. Keep emulator-dependent commands such as `connectedDebugAndroidTest` out of
-`verify_commands` unless an emulator is always up, otherwise every attempt fails for an
-environmental reason. CLI overrides: `--verify`, `--no-verify`, `--max-attempts`,
-`--require-tests`, `--no-require-tests`.
+`.\` on Windows. `verify_env_script` dot-sources the repo's env-setup script (`.ps1` on Windows,
+`.sh` on macOS/Linux) in the same shell as the command, falling back to the committed `.sample`
+when the real, gitignored script is absent — otherwise a runner started from a plain terminal is
+missing the variables the project needs. Keep commands that need a prerequisite you cannot
+guarantee (a running emulator, a live service, network access) out of `verify_commands`,
+otherwise every attempt fails for an environmental reason. CLI overrides: `--verify`,
+`--no-verify`, `--max-attempts`, `--require-tests`, `--no-require-tests`.
 
 ## Task file format
 
@@ -170,7 +172,7 @@ copy to clipboard button for IDs
 The runner rewrites `status`, `attempts` and a capped `## Run log` section after every
 attempt; the prose you write is left alone. `attempts` counts Pi sessions, so a task whose tests
 were red shows `attempts: 2` plus one summary line per attempt
-(`... status=todo (model=done) ... check: exited 1: ./gradlew testDebugUnitTest`). Older attempts
+(`... status=todo (model=done) ... check: exited 1: <verify_commands entry>`). Older attempts
 keep only their summary line; their full transcript stays in `logs/`. A frontmatter whose closing
 `---` an older runner dropped is repaired on the next write.
 `## Questions for the human` sections are yours to add (Pi cannot ask you questions in print
@@ -222,7 +224,7 @@ python .harness-loop\selftest.py     # 7 scenarios, exit 0 when all pass
 
 - Pi resolves `@file` references from its working directory, so the task file is passed as
   `@.harness-loop/tasks/NN-slug.md` and the process cwd is pinned to the repo root.
-- Runner cwd is always the repo root (`c:\p\megadiagram`), never `.harness-loop`, so agents
+- Runner cwd is always the repository root, never `.harness-loop`, so agents
   edit the real project and see the same paths you do in the editor.
 - Multiple runners at once share `sessions/`, and Pi 0.15 added an advisory lock per session
   file; keep one runner per worktree, or use `--limit 1` per task from a wrapper.

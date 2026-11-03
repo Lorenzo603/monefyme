@@ -101,9 +101,9 @@ import pathlib
 import sys
 
 if pathlib.Path("green.flag").exists():
-    print("BUILD SUCCESSFUL")
+    print("checks passed")
     sys.exit(0)
-print("> Task :testDebugUnitTest FAILED")
+print("checks failed")
 print("1 test completed, 1 failed")
 sys.exit(1)
 '''
@@ -206,7 +206,7 @@ def main() -> int:
         print(f"error: {RUNNER} not found", file=sys.stderr)
         return 2
 
-    repo = Path(tempfile.mkdtemp(prefix="monefyme-selftest-"))
+    repo = Path(tempfile.mkdtemp(prefix="harness-selftest-"))
     print(f"throwaway repo: {repo}")
     failures: list[str] = []
     try:
