@@ -16,6 +16,7 @@ Usage (from the repository root):
     python .harness-loop/runner.py --dry-run
     python .harness-loop/runner.py
     python .harness-loop/runner.py --only tech-logos --model sonnet:high
+    python .harness-loop/runner.py --only tech-logos --no-color   # plain live output
 """
 
 from __future__ import annotations
@@ -67,6 +68,123 @@ VALID_PROMPT_MODES = {"stdin", "arg"}
 TOOL_ARG_CHARS = 400
 TOOL_RESULT_CHARS = 1500
 
+# --------------------------------------------------------------------------- terminal colours
+#
+# Colour is produced here, in the runner, and it is not a shell feature the harness has to
+# rely on: Pi runs as a child process in `--mode json` (its stdout is JSON, never coloured
+# text), and the runner renders that stream itself. What the runner writes are plain ANSI
+# escape codes on its own stdout; they are interpreted by whatever terminal the runner is
+# started from (Git Bash/MSYS2, macOS Terminal/iTerm2, Windows Terminal / conhost), not by
+# bash, zsh or cmd.exe. So the only shell/OS dependency is that the terminal understands
+# ANSI and the stream is an interactive terminal - which is detected, never assumed:
+#   * colours are off unless the output is a TTY (piping or `logs/` redirection stays plain),
+#   * `NO_COLOR` (https://no-color.org) always wins, `FORCE_COLOR` forces them on,
+#   * `TERM=dumb` disables them,
+#   * on Windows VT processing is enabled on the console handle first (ctypes,
+#     ENABLE_VIRTUAL_TERMINAL_PROCESSING); if that call fails (old conhost, redirected
+#     handle) the runner falls back to plain text instead of printing raw escape codes.
+# Because the codes come from the runner, the harness stays repository agnostic and no
+# terminal-emulator-specific setting is needed in bash, zsh or Git Bash.
+
+RESET = "\x1b[0m"
+ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+VALID_COLOR = {"auto", "always", "never"}
+
+# One colour per kind of action, so the live view is scannable at a glance.
+PALETTE = {
+    "thinking": "\x1b[90m",    # dim grey: the model's reasoning
+    "assistant": "\x1b[32m",   # green: the model's answer
+    "tool": "\x1b[36m",        # cyan: a tool call and its arguments
+    "tool_result": "\x1b[34m",  # blue: what the tool returned
+    "pi": "\x1b[35m",          # magenta: runner notes (turns, retries, agent start/end)
+    "prompt": "\x1b[33m",      # yellow: what the runner hands the model (prompt, retry note)
+    "warning": "\x1b[93m",     # bright yellow: Pi stderr, notes that are not failures
+    "header": "\x1b[1m",       # bold: attempt and verification headers
+    "ok": "\x1b[32m",          # green: a check that passed
+    "error": "\x1b[31m",       # red: a failure, an error result, a rejected attempt
+}
+
+# Decided once in validate_config() (see color_requested); drives the runner's own prints.
+USE_COLORS = False
+
+
+def set_colors(enabled: bool) -> None:
+    global USE_COLORS
+    USE_COLORS = bool(enabled)
+
+
+def paint(text: str, key: str = "") -> str:
+    """Wrap text in the colour of its action kind; untouched when colours are off."""
+    code = PALETTE.get(key, "") if USE_COLORS else ""
+    return f"{code}{text}{RESET}" if code else text
+
+
+def say(text: str, key: str = "", stream=None) -> None:
+    """A runner message printed in its kind's colour (plain when colours are off)."""
+    print(paint(text, key), file=stream if stream is not None else sys.stdout, flush=True)
+
+
+def _windows_vt_ready() -> bool:
+    """Turn on ANSI processing on the Windows console handles (no-op on macOS/Linux).
+
+    Returns False when the handles are not consoles or the mode cannot be set, in which
+    case the runner keeps its output plain instead of printing escape codes verbatim.
+    """
+    if os.name != "nt":
+        return True
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+    except (ImportError, OSError, AttributeError):
+        return False
+    ready = False
+    try:
+        for std_handle in (-11, -12):  # STD_OUTPUT_HANDLE, STD_ERROR_HANDLE
+            handle = kernel32.GetStdHandle(std_handle)
+            if not handle or handle == -1:
+                continue
+            mode = ctypes.c_uint32()
+            # GetConsoleMode fails when the handle is a pipe or a redirected file.
+            if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+                continue
+            if kernel32.SetConsoleMode(handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING):
+                ready = True
+    except (OSError, AttributeError):
+        return False
+    return ready
+
+
+def color_requested(mode: str) -> bool:
+    """Should the console output be coloured? `auto` only says yes for a real terminal."""
+    mode = (mode or "auto").strip().lower()
+    if mode not in VALID_COLOR:
+        print(
+            f"warning: color must be one of {', '.join(sorted(VALID_COLOR))}, using "
+            f"{DEFAULT_CONFIG['color']!r}",
+            file=sys.stderr,
+        )
+        mode = DEFAULT_CONFIG["color"]
+    if os.environ.get("NO_COLOR"):
+        return False  # https://no-color.org: any value disables colour
+    if mode == "never":
+        return False
+    if mode == "always":
+        if (os.name == "nt" and hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+                and not _windows_vt_ready()):
+            # Asked for colours, but this console would only print the escape codes verbatim.
+            print("warning: this Windows console cannot enable ANSI colours, printing plain text",
+                  file=sys.stderr)
+            return False
+        return True
+    if os.environ.get("FORCE_COLOR"):
+        return True
+    if os.environ.get("TERM", "").strip().lower() in ("dumb", "unknown"):
+        return False
+    if not (hasattr(sys.stdout, "isatty") and sys.stdout.isatty()):
+        return False  # piped or redirected: keep the pipe/log byte-clean
+    return _windows_vt_ready()
+
 DEFAULT_CONFIG = {
     "pi_bin": "pi",
     "model": "",          # empty -> whatever Pi has configured
@@ -81,6 +199,8 @@ DEFAULT_CONFIG = {
     "stream_output": True,   # live-print what Pi is thinking/doing/printing while it runs
     "stream_thinking": True,  # include thinking blocks in the live view
     "stream_raw": False,     # also dump Pi's raw JSONL records to the console
+    "color": "auto",         # auto (only on a terminal) | always | never: per-action colours
+    "use_color": False,      # derived at runtime from `color` by validate_config(); not set by hand
     # Verification: the harness re-runs these test commands after every attempt that claims
     # DONE. A failure sends the same task back to a fresh Pi session (see max_attempts).
     "verify_commands": [],          # shell commands, run from the repo root
@@ -395,43 +515,60 @@ class LiveView:
 
     Deltas are written as they arrive, so the run is followable live: thinking text,
     answer text, every tool call with its arguments, and every tool result.
+
+    Each kind of action gets its own colour (PALETTE) on the console, while the transcript
+    kept for logs/ stays free of escape codes so a log is still plain text.
     """
 
-    def __init__(self, thinking: bool = True, raw: bool = False) -> None:
+    def __init__(self, thinking: bool = True, raw: bool = False, color: bool = False) -> None:
         self.thinking = thinking
         self.raw = raw
+        self.color = color
         self.open_prefix: str | None = None  # a block currently written inline
+        self.open_key = ""  # which colour the open block was started with
         self.assistant_text: list[str] = []  # authoritative text, for the STATUS line
         self.transcript: list[str] = []  # same view as text, for the per-attempt log
         self.segment = ""
         self.turn = 0
 
+    def colored(self, text: str, key: str) -> str:
+        """Wrap text in its action colour; the console only, never in the transcript."""
+        code = PALETTE.get(key, "") if self.color else ""
+        return f"{code}{text}{RESET}" if code else text
+
     def _close(self) -> None:
         if self.open_prefix is not None:
-            sys.stdout.write("\n")
+            # End the colour before the newline so it cannot bleed into the next block.
+            sys.stdout.write((RESET if self.color and PALETTE.get(self.open_key) else "") + "\n")
             sys.stdout.flush()
             if self.segment:
                 self.transcript.append(f"{self.open_prefix}{self.segment}")
             self.open_prefix = None
+            self.open_key = ""
             self.segment = ""
 
-    def line(self, text: str) -> None:
+    def line(self, text: str, key: str = "pi") -> None:
         self._close()
-        print(f"[pi] {text}", flush=True)
+        sys.stdout.write(self.colored(f"[pi] {text}", key) + "\n")
+        sys.stdout.flush()
         self.transcript.append(f"[pi] {text}")
 
-    def start(self, prefix: str) -> None:
+    def start(self, prefix: str, key: str = "") -> None:
         self._close()
-        sys.stdout.write(prefix)
+        # The colour is switched on here and switched off in _close(), so everything the
+        # model streams into this block (thinking text, answer text) keeps the block colour.
+        code = PALETTE.get(key, "") if self.color else ""
+        sys.stdout.write(code + prefix)
         sys.stdout.flush()
         self.open_prefix = prefix
+        self.open_key = key
         self.segment = ""
 
-    def ensure(self, prefix: str) -> None:
+    def ensure(self, prefix: str, key: str = "") -> None:
         """Open the block prefix only when there is actually content to show."""
         if self.open_prefix == prefix:
             return
-        self.start(prefix)
+        self.start(prefix, key)
 
     def write(self, text: str) -> None:
         if text:
@@ -439,24 +576,32 @@ class LiveView:
             sys.stdout.flush()
             self.segment += text
 
-    def plain(self, text: str) -> None:
+    def plain(self, text: str, key: str = "tool_result") -> None:
         """Standalone (non-streamed) output line, e.g. a finished tool result."""
         if not text:
             return
         self._close()
-        sys.stdout.write(text if text.endswith("\n") else text + "\n")
+        body = text[:-1] if text.endswith("\n") else text
+        sys.stdout.write(self.colored(body, key) + "\n")
         sys.stdout.flush()
-        self.transcript.append(text.rstrip("\n"))
+        self.transcript.append(body)
+
+    def echo(self, text: str, key: str = "assistant") -> None:
+        """A raw (non-JSONL) stdout line from an older Pi: colour it, leave the transcript
+        alone because the raw stdout is written to the log separately."""
+        self._close()
+        sys.stdout.write(self.colored(text, key) + "\n")
+        sys.stdout.flush()
 
     def event(self, obj: dict) -> None:
         kind = obj.get("type")
         if self.raw:
-            self.line(json.dumps(obj, ensure_ascii=False))
+            self.line(json.dumps(obj, ensure_ascii=False), "pi")
         elif kind == "session":
-            self.line(f"session {obj.get('id', '?')} ({obj.get('cwd', '?')})")
+            self.line(f"session {obj.get('id', '?')} ({obj.get('cwd', '?')})", "pi")
 
         if kind == "agent_start":
-            self.line("agent start")
+            self.line("agent start", "pi")
         elif kind == "agent_end":
             # Safety net: if no message_end carried the text, recover it from the run.
             for message in obj.get("messages") or []:
@@ -465,28 +610,30 @@ class LiveView:
                     if text:
                         self.assistant_text.append(text)
                 if isinstance(message, dict) and message.get("errorMessage"):
-                    self.line(f"assistant error: {message['errorMessage']}")
-            self.line(f"agent end (will_retry={bool(obj.get('willRetry'))})")
+                    self.line(f"assistant error: {message['errorMessage']}", "error")
+            self.line(f"agent end (will_retry={bool(obj.get('willRetry'))})", "pi")
         elif kind == "agent_settled":
-            self.line("agent settled" if not obj.get("aborted") else "agent aborted")
+            self.line("agent settled" if not obj.get("aborted") else "agent aborted", "pi")
         elif kind == "turn_start":
             self.turn += 1
-            self.line(f"--- turn {self.turn} ---")
+            self.line(f"--- turn {self.turn} ---", "header")
         elif kind == "turn_end":
             self._close()
         elif kind == "tool_execution_start":
             self.plain(
-                f"[tool {obj.get('toolName', '?')}] {_one_line(obj.get('args'), TOOL_ARG_CHARS)}"
+                f"[tool {obj.get('toolName', '?')}] {_one_line(obj.get('args'), TOOL_ARG_CHARS)}",
+                "tool",
             )
         elif kind == "tool_execution_update":
-            self.plain(f"    {_one_line(obj.get('partialResult'), 400)}")
+            self.plain(f"    {_one_line(obj.get('partialResult'), 400)}", "tool_result")
         elif kind == "tool_execution_end":
             flag = "error" if obj.get("isError") else "ok"
             ms = obj.get("durationMs")
             timing = f" {ms}ms" if isinstance(ms, (int, float)) else ""
             self.plain(
                 f"    -> {obj.get('toolName', '?')} {flag}{timing}: "
-                f"{_one_line(_content_text(obj.get('result')), TOOL_RESULT_CHARS)}"
+                f"{_one_line(_content_text(obj.get('result')), TOOL_RESULT_CHARS)}",
+                "error" if obj.get("isError") else "tool_result",
             )
         elif kind == "message_start":
             message = obj.get("message") or {}
@@ -505,30 +652,32 @@ class LiveView:
         elif kind == "message_update":
             self._assistant_event(obj.get("assistantMessageEvent") or {})
         elif kind == "compaction_start":
-            self.line(f"compaction start ({obj.get('reason', '?')})")
+            self.line(f"compaction start ({obj.get('reason', '?')})", "pi")
         elif kind == "compaction_end":
-            self.line(f"compaction end ({obj.get('reason', '?')})")
+            self.line(f"compaction end ({obj.get('reason', '?')})", "pi")
         elif kind == "auto_retry_start":
             self.line(
                 f"retry {obj.get('attempt', '?')}/{obj.get('maxAttempts', '?')} in "
-                f"{obj.get('delayMs', '?')}ms: {obj.get('errorMessage', '')}"
+                f"{obj.get('delayMs', '?')}ms: {obj.get('errorMessage', '')}",
+                "error",
             )
         elif kind == "auto_retry_end":
-            self.line(f"retry {'ok' if obj.get('success') else 'failed'}")
+            self.line(f"retry {'ok' if obj.get('success') else 'failed'}",
+                      "ok" if obj.get("success") else "error")
         elif kind == "thinking_level_changed":
-            self.line(f"thinking level -> {obj.get('level', '?')}")
+            self.line(f"thinking level -> {obj.get('level', '?')}", "pi")
         elif kind == "session_info_changed":
-            self.line(f"session name: {obj.get('name') or '(cleared)'}")
+            self.line(f"session name: {obj.get('name') or '(cleared)'}", "pi")
 
     def _assistant_event(self, ev: dict) -> None:
         """Stream one assistant content block (thinking, text) token by token."""
         kind = ev.get("type")
         if kind == "thinking_delta" and self.thinking:
-            self.ensure("[thinking] ")
+            self.ensure("[thinking] ", "thinking")
             self.write(ev.get("delta", ""))
             return
         if kind == "text_delta":
-            self.ensure("[assistant] ")
+            self.ensure("[assistant] ", "assistant")
             self.write(ev.get("delta", ""))
             return
         if kind in ("thinking_end", "text_end"):
@@ -537,14 +686,17 @@ class LiveView:
             # Authoritative content; only re-print when nothing was streamed live.
             content = ev.get("content", "")
             if self.open_prefix is None and content:
-                self.ensure("[thinking] " if kind == "thinking_end" else "[assistant] ")
+                self.ensure(
+                    "[thinking] " if kind == "thinking_end" else "[assistant] ",
+                    "thinking" if kind == "thinking_end" else "assistant",
+                )
                 self.write(content)
             self._close()
             return
         if kind == "toolcall_start":
-            self.line(f"tool call: {ev.get('toolName', '?')}")
+            self.line(f"tool call: {ev.get('toolName', '?')}", "tool")
         elif kind == "error":
-            self.line(f"stream error ({ev.get('reason', '?')}): {ev.get('error', '')}")
+            self.line(f"stream error ({ev.get('reason', '?')}): {ev.get('error', '')}", "error")
 
 
 def _terminate(proc: subprocess.Popen) -> None:
@@ -585,7 +737,11 @@ def stream_pi_process(proc: subprocess.Popen, cfg: dict) -> tuple[str, str, str,
     Returns (raw stdout text, raw stderr text, assistant text, transcript, timed_out).
     stdout is read continuously on purpose: a stalled reader can block Pi.
     """
-    view = LiveView(thinking=cfg["stream_thinking"], raw=cfg["stream_raw"])
+    view = LiveView(
+        thinking=cfg["stream_thinking"],
+        raw=cfg["stream_raw"],
+        color=cfg["use_color"],
+    )
     json_mode = False
     sink: queue.Queue = queue.Queue()
     threads = [
@@ -616,7 +772,7 @@ def stream_pi_process(proc: subprocess.Popen, cfg: dict) -> tuple[str, str, str,
         if name == "err":
             err_lines.append(text)
             if cfg["stream_output"] and text.strip():
-                view.line(f"stderr: {text}")
+                view.line(f"stderr: {text}", "warning")
             continue
 
         out_lines.append(text)
@@ -628,13 +784,13 @@ def stream_pi_process(proc: subprocess.Popen, cfg: dict) -> tuple[str, str, str,
             obj = json.loads(text)
         except json.JSONDecodeError:
             # Not JSONL (older Pi, or a plain-text run): echo it as it comes.
-            view.write(text + "\n")
+            view.echo(text, "assistant")
             continue
         if isinstance(obj, dict):
             json_mode = True
             view.event(obj)
         else:
-            view.write(text + "\n")
+            view.echo(text, "assistant")
 
     view._close()
     try:
@@ -727,6 +883,16 @@ def verification_command(cmd: str, cfg: dict) -> str:
     return f'. "./{script}"; {cmd}'
 
 
+def check_output_color(line: str) -> str:
+    """Colour a line of a verification command's output by what it says (generic keywords)."""
+    text = line.lower()
+    if any(word in text for word in ("failed", "failure", "error", "timed out")):
+        return "error"
+    if any(word in text for word in ("passed", "success")):
+        return "ok"
+    return ""
+
+
 def run_verification(task: Task, cfg: dict) -> list[str]:
     """Run the harness test commands after an attempt. Returns failure notes ([] when green).
 
@@ -743,7 +909,7 @@ def run_verification(task: Task, cfg: dict) -> list[str]:
         cmd = verification_command(raw, cfg)
         if not cmd:
             continue
-        print(f"\n--- verification ({task.slug}): {cmd} ---")
+        say(f"\n--- verification ({task.slug}): {cmd} ---", "header")
         try:
             proc = subprocess.run(
                 cmd,
@@ -763,7 +929,7 @@ def run_verification(task: Task, cfg: dict) -> list[str]:
         tail = [line.strip() for line in output.splitlines() if line.strip()]
         tail = tail[-cfg["log_tail_lines"]:]
         for line in tail:
-            print(f"    {line}")
+            say(f"    {line}", check_output_color(line))
         if timed_out:
             note = f"timed out after {cfg['verify_timeout_seconds']}s: {cmd}"
         elif code != 0:
@@ -771,13 +937,13 @@ def run_verification(task: Task, cfg: dict) -> list[str]:
         else:
             note = ""
         if note:
-            print(f"[pi] verification FAILED: {note}")
+            say(f"[pi] verification FAILED: {note}", "error")
             notes.append(note)
             if tail:
                 excerpt = " | ".join(tail[-12:])
                 notes.append(f"output tail: {excerpt[:1200]}")
         else:
-            print(f"[pi] verification passed: {cmd}")
+            say(f"[pi] verification passed: {cmd}", "ok")
     return notes
 
 
@@ -797,7 +963,7 @@ def test_coverage_note(task: Task, cfg: dict, baseline: set[str] | None) -> str:
     if tests:
         return ""
     shown = ", ".join(source[:8]) + (" ..." if len(source) > 8 else "")
-    print(f"[pi] no test file changed for: {shown}")
+    say(f"[pi] no test file changed for: {shown}", "error")
     return (
         "no test file was added or updated although production code changed "
         f"(tests must match {', '.join(cfg['test_globs'])}); changed source: {shown}"
@@ -884,6 +1050,10 @@ def validate_config(cfg: dict) -> None:
     if cfg["verify_timeout_seconds"] < 10:
         print("warning: verify_timeout_seconds is too small, using 10", file=sys.stderr)
         cfg["verify_timeout_seconds"] = 10
+    # Colour decision, once per run: `color` is auto/always/never (see color_requested) and
+    # cfg["use_color"] is the boolean every renderer below then uses.
+    cfg["use_color"] = color_requested(cfg["color"])
+    set_colors(cfg["use_color"])
 
 
 def get_pi_help(pi_bin: str) -> str:
@@ -926,7 +1096,7 @@ def select_tasks(args: argparse.Namespace) -> list[Task]:
             if by_slug.get(dep) is None or by_slug[dep].status != DONE
         ]
         if unmet:
-            print(f"skip  {task.slug}: waiting on {', '.join(unmet)}")
+            say(f"skip  {task.slug}: waiting on {', '.join(unmet)}", "warning")
             continue
         selected.append(task)
 
@@ -953,16 +1123,17 @@ def run_attempt(
     stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def show(cmd_line: str) -> None:
-        print(cmd_line)
+        say(cmd_line, "prompt")
         if stdin_text:
-            print(f"--- stdin ---\n{stdin_text}\n--- end of stdin ---")
+            say(f"--- stdin ---\n{stdin_text}\n--- end of stdin ---", "prompt")
 
-    print(f"\n=== {task.slug} (attempt {attempt}) ===")
+    say(f"\n=== {task.slug} (attempt {attempt}) ===", "header")
     if cfg["stream_output"]:
-        print("live output: [thinking] model reasoning, [assistant] its reply, "
-              "[tool] every command/edit it runs and its result")
+        say("live output: [thinking] model reasoning, [assistant] its reply, "
+            "[tool] every command/edit it runs and its result "
+            "(each in its own colour" + (", colours off" if not cfg["use_color"] else "") + ")")
     if prior_note:
-        print(f"[pi] handed to the model:\n{prior_note}")
+        say(f"[pi] handed to the model:\n{prior_note}", "prompt")
     if args.dry_run:
         show(" ".join(f'"{part}"' if " " in part else part for part in cmd))
         return Attempt(TODO, "dry run", [], "", 0)
@@ -1007,7 +1178,7 @@ def run_attempt(
         encoding="utf-8",
     )
     if timed_out:
-        print(f"{task.slug}: timed out after {cfg['timeout_seconds']}s")
+        say(f"{task.slug}: timed out after {cfg['timeout_seconds']}s", "error")
         return Attempt(
             FAILED,
             f"timed out after {cfg['timeout_seconds']}s",
@@ -1030,8 +1201,9 @@ def run_attempt(
 
     tail = [line.strip() for line in (assistant or output).strip().splitlines() if line.strip()]
     tail = tail[-cfg["log_tail_lines"]:]
-    print(f"{task.slug}: model reported {status} (exit {proc.returncode}, log: "
-          f"{log_path.relative_to(REPO).as_posix()})")
+    report_key = {DONE: "ok", BLOCKED: "warning", FAILED: "error"}.get(status, "pi")
+    say(f"{task.slug}: model reported {status} (exit {proc.returncode}, log: "
+        f"{log_path.relative_to(REPO).as_posix()})", report_key)
     return Attempt(status, note, tail, log_path.name, proc.returncode)
 
 
@@ -1085,11 +1257,11 @@ def run_task(task: Task, cfg: dict, args: argparse.Namespace) -> str:
             entries += [f"  {line}" for line in result.tail]
             write_task(current, DONE, entries)
             if cfg["verify_commands"] or cfg["require_tests"]:
-                print(f"{current.slug}: done (attempt {attempt} passed the harness checks)")
+                say(f"{current.slug}: done (attempt {attempt} passed the harness checks)", "ok")
             else:
-                print(f"{current.slug}: done (attempt {attempt}; no harness checks configured)")
+                say(f"{current.slug}: done (attempt {attempt}; no harness checks configured)", "ok")
             dest = archive_task(current)
-            print(f"{current.slug}: archived to {dest.relative_to(REPO).as_posix()}")
+            say(f"{current.slug}: archived to {dest.relative_to(REPO).as_posix()}", "ok")
             return DONE
 
         exhausted = rounds >= max_attempts
@@ -1102,11 +1274,11 @@ def run_task(task: Task, cfg: dict, args: argparse.Namespace) -> str:
         write_task(current, next_status, entries)
 
         if exhausted:
-            print(f"{current.slug}: failed after {attempt} attempt(s) - {reason[:300]}")
+            say(f"{current.slug}: failed after {attempt} attempt(s) - {reason[:300]}", "error")
             return FAILED
 
-        print(f"{current.slug}: checks failed on attempt {attempt}; re-running the same task "
-              f"({max_attempts - rounds} session(s) left for this task)")
+        say(f"{current.slug}: checks failed on attempt {attempt}; re-running the same task "
+            f"({max_attempts - rounds} session(s) left for this task)", "error")
         prior_note = (
             f"Attempt {attempt} of this task did not pass the harness checks:\n"
             + "\n".join(f"- {problem}" for problem in problems)[:2000]
@@ -1177,6 +1349,16 @@ def main() -> int:
         help="live-print tools and replies, but not thinking blocks",
     )
     parser.add_argument(
+        "--color",
+        choices=sorted(VALID_COLOR),
+        help="colour the live output per action kind: auto (only on a terminal), always, never",
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="same as --color never (also honoured: the NO_COLOR environment variable)",
+    )
+    parser.add_argument(
         "--raw",
         action="store_true",
         help="also print Pi's raw JSONL events (full raw stream is always kept in logs/)",
@@ -1216,6 +1398,10 @@ def main() -> int:
         cfg["stream_output"] = True
     if args.no_thinking:
         cfg["stream_thinking"] = False
+    if args.color:
+        cfg["color"] = args.color
+    if args.no_color:
+        cfg["color"] = "never"
     if args.raw:
         cfg["stream_raw"] = True
     if args.thinking and args.thinking not in VALID_THINKING:
@@ -1230,10 +1416,11 @@ def main() -> int:
     tasks = [read_task(p) for p in sorted(TASKS_DIR.glob("*.md"))]
 
     if args.list:
+        colour = {TODO: "prompt", DONE: "ok", BLOCKED: "warning", FAILED: "error"}
         for task in tasks:
             deps = f" (depends on {', '.join(task.depends_on)})" if task.depends_on else ""
             attempts = f" attempts={task.attempts}" if task.attempts else ""
-            print(f"{task.status:<8} {task.slug}{attempts}{deps}")
+            say(f"{task.status:<8} {task.slug}{attempts}{deps}", colour.get(task.status, "pi"))
         return 0
 
     selected = select_tasks(args)
@@ -1261,14 +1448,14 @@ def main() -> int:
     if not args.dry_run and not cfg["ephemeral_sessions"]:
         SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
-    print(f"{len(selected)} task(s) queued: {', '.join(t.slug for t in selected)}")
+    say(f"{len(selected)} task(s) queued: {', '.join(t.slug for t in selected)}", "header")
     results: dict[str, str] = {}
     for task in selected:
         current = read_task(task.path)
         status = run_task(current, cfg, args)
         results[current.slug] = status
         if status == BLOCKED and not args.keep_going_blocked:
-            print("stopping: a task needs human input")
+            say("stopping: a task needs human input", "warning")
             break
 
     not_done = [slug for slug, status in results.items() if status not in (DONE, TODO)]
@@ -1276,7 +1463,7 @@ def main() -> int:
     summary = f"run summary: {len(done)} done"
     if not_done:
         summary += f", {len(not_done)} not done: {', '.join(not_done)}"
-    print(f"\n{summary}")
+    say(f"\n{summary}", "ok" if not not_done else "error")
     return 0 if not not_done else 1
 
 

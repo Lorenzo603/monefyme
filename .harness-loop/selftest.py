@@ -19,6 +19,9 @@ Scenarios:
   E  --no-verify --no-require-tests -> the STATUS line alone decides (escape hatch)
   F  STATUS: BLOCKED -> no retry, the task waits for a human
   G  frontmatter whose closing `---` an older runner dropped, and `depends_on: nothing`
+  H  live-view colours: one colour per action kind, transcript/log text stays free of them
+  I  end to end: --color always paints the console run, --no-color and a piped run stay plain,
+     and the per-attempt log file never contains escape codes
 """
 
 from __future__ import annotations
@@ -36,6 +39,7 @@ HERE = Path(__file__).resolve().parent
 RUNNER = HERE / "runner.py"
 
 FAKE_PI_PY = r'''"""Stand-in for pi: claims DONE and mutates the fake repo according to the task slug."""
+import json
 import re
 import sys
 from pathlib import Path
@@ -56,6 +60,24 @@ print("task=%s call=%d retry_note=%s" % (slug, calls + 1, "yes" if retry else "n
 
 main_dir = ROOT / "src" / "main"
 test_dir = ROOT / "src" / "test"
+
+def colour_events(answer):
+    """Pi-shaped JSONL session events: one block per kind of action."""
+    return [
+        {"type": "turn_start"},
+        {"type": "message_update", "assistantMessageEvent": {"type": "thinking_delta",
+                                                            "delta": "planning the change"}},
+        {"type": "tool_execution_start", "toolName": "bash", "args": {"command": "ls"}},
+        {"type": "tool_execution_end", "toolName": "bash", "isError": False, "durationMs": 5,
+         "result": {"content": [{"type": "text", "text": "docs"}]}},
+        {"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": answer}},
+        {"type": "message_end", "message": {"role": "assistant",
+                                           "content": [{"type": "text", "text": answer}]}},
+        {"type": "turn_end"},
+        {"type": "agent_end", "messages": []},
+        {"type": "agent_settled", "aborted": False},
+    ]
+
 
 if slug == "01-alpha":
     main_dir.mkdir(parents=True, exist_ok=True)
@@ -82,6 +104,13 @@ elif slug == "04-delta":
     (main_dir / "Delta.kt").write_text("fun delta() = 4", encoding="utf-8")
     (test_dir / "DeltaTest.kt").write_text("fun testDelta() = true", encoding="utf-8")
     print("STATUS: DONE changed Delta.kt plus DeltaTest.kt")
+elif slug in ("08-color", "09-plain", "10-default"):
+    # Emits Pi's JSONL session events so the runner's live view has one block per action kind.
+    docs = ROOT / "docs"
+    docs.mkdir(parents=True, exist_ok=True)
+    (docs / (slug + ".md")).write_text("colour notes", encoding="utf-8")
+    for event in colour_events("STATUS: DONE changed docs/" + slug + ".md"):
+        print(json.dumps(event))
 elif slug == "05-eps":
     main_dir.mkdir(parents=True, exist_ok=True)
     (main_dir / "Eps.kt").write_text("fun eps() = 5", encoding="utf-8")
@@ -114,6 +143,7 @@ TASKS_MD = {
     "03-gamma.md": "documentation only",
     "04-delta.md": "source change with a matching test",
     "07-theta.md": "a task that needs a human decision",
+    "08-color.md": "colour the live console output per action kind",
 }
 
 
@@ -172,6 +202,17 @@ def setup(repo: Path) -> dict:
     return config
 
 
+def load_runner(path: Path, name: str):
+    """Import runner.py as a module so the self-test can call its pieces directly."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
 class Harness:
     def __init__(self, repo: Path):
         self.repo = repo
@@ -223,6 +264,8 @@ def main() -> int:
         check("F blocked: no retry, waits for a human", scenario_f, h, failures)
         if git_available:
             check("G broken frontmatter and 'depends_on: nothing'", scenario_g, h, failures)
+        check("H live view colours: one per action kind, logs stay plain", scenario_h, h, failures)
+        check("I colour run end to end: --color always, --no-color, piped default", scenario_i, h, failures)
     finally:
         shutil.rmtree(str(repo), ignore_errors=True)
 
@@ -313,12 +356,7 @@ def scenario_f(h: Harness) -> None:
 
 
 def scenario_g(h: Harness) -> None:
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("runner_under_test", h.harness / "runner.py")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules["runner_under_test"] = mod
-    spec.loader.exec_module(mod)
+    mod = load_runner(h.harness / "runner.py", "runner_under_test")
 
     assert mod.split_deps("nothing") == [] and mod.split_deps("none") == []
     assert mod.split_deps("01-alpha, 03-gamma") == ["01-alpha", "03-gamma"]
@@ -338,6 +376,138 @@ def scenario_g(h: Harness) -> None:
     body = (h.archived / "06-eta.md").read_text(encoding="utf-8")
     assert body.count("---") == 2, "the closing frontmatter delimiter is restored\n" + body[:400]
     assert "depends_on: nothing" in body.split("---")[1]
+
+
+# Events the colour tests feed to the live view (one block per kind of action).
+COLOUR_EVENTS = [
+    {"type": "turn_start"},
+    {"type": "message_update", "assistantMessageEvent": {"type": "thinking_delta", "delta": "planning"}},
+    {"type": "tool_execution_start", "toolName": "bash", "args": {"command": "ls"}},
+    {"type": "tool_execution_end", "toolName": "bash", "isError": False, "durationMs": 5,
+     "result": {"content": [{"type": "text", "text": "docs"}]}},
+    {"type": "tool_execution_end", "toolName": "bash", "isError": True,
+     "result": {"content": [{"type": "text", "text": "boom"}]}},
+    {"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": "the answer"}},
+    {"type": "message_end", "message": {"role": "assistant",
+                                       "content": [{"type": "text", "text": "the answer"}]}},
+]
+
+
+def render_live_view(mod, color: bool) -> tuple[str, object]:
+    """Run the runner's live view over COLOUR_EVENTS and return (console text, view)."""
+    import contextlib
+    import io
+
+    view = mod.LiveView(color=color)
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        for event in COLOUR_EVENTS:
+            view.event(event)
+    return buf.getvalue(), view
+
+
+def scenario_h(h: Harness) -> None:
+    """Colour is decided by the runner, per action kind, and never leaks into the transcript."""
+    mod = load_runner(RUNNER, "colour_runner_under_test")
+
+    plain, _ = render_live_view(mod, False)
+    assert "\x1b[" not in plain, f"colours off must not emit escape codes: {plain!r}"
+
+    painted, view = render_live_view(mod, True)
+    assert "\x1b[" in painted, f"colours on produced no escape codes: {painted!r}"
+    expected = {
+        "header": "[pi] --- turn 1 ---",
+        "thinking": "[thinking] planning",
+        "tool": '[tool bash]',
+        "tool_result": "    -> bash ok 5ms: docs",
+        "error": "    -> bash error: boom",
+        "assistant": "[assistant] the answer",
+    }
+    for key, text in expected.items():
+        assert mod.PALETTE[key] + text in painted, \
+            f"{text!r} must be painted in the {key} colour: {painted!r}"
+    assert mod.RESET in painted, "every coloured block must be closed again"
+
+    kinds = ("thinking", "assistant", "tool", "tool_result", "pi", "prompt", "error", "header", "warning")
+    codes = [mod.PALETTE[key] for key in kinds]
+    assert len(set(codes)) == len(codes), f"each action kind needs its own colour: {codes}"
+
+    assert all("\x1b" not in line for line in view.transcript), \
+        f"the log transcript must stay plain text: {view.transcript}"
+
+    # Decision rules: NO_COLOR wins, --color always/never force, auto needs a real terminal.
+    saved_no_color = os.environ.pop("NO_COLOR", None)
+    saved_force_color = os.environ.pop("FORCE_COLOR", None)
+    original_sys = mod.sys
+    try:
+        assert mod.color_requested("always") is True
+        assert mod.color_requested("never") is False
+        os.environ["NO_COLOR"] = "1"
+        assert mod.color_requested("always") is False, "NO_COLOR must beat --color always"
+        os.environ.pop("NO_COLOR")
+
+        class _Pipe:
+            def isatty(self):
+                return False
+
+        class _Shim:
+            stdout = _Pipe()
+            stderr = sys.stderr  # the real one: colour decisions warn here
+
+        mod.sys = _Shim()
+        assert mod.color_requested("auto") is False, "auto stays plain when piped or redirected"
+        os.environ["FORCE_COLOR"] = "1"
+        assert mod.color_requested("auto") is True, "FORCE_COLOR overrides the terminal check"
+        os.environ.pop("FORCE_COLOR")
+        assert mod.color_requested("bogus") is False, "an unknown mode falls back to auto"
+    finally:
+        mod.sys = original_sys
+        os.environ.pop("FORCE_COLOR", None)
+        if saved_no_color is not None:
+            os.environ["NO_COLOR"] = saved_no_color
+        if saved_force_color is not None:
+            os.environ["FORCE_COLOR"] = saved_force_color
+
+    assert mod.check_output_color("1 test completed, 1 failed") == "error"
+    assert mod.check_output_color("BUILD SUCCESSFUL in 3s") == "ok"
+    assert mod.check_output_color("w: unused variable") == ""
+
+
+def scenario_i(h: Harness) -> None:
+    """End to end: the flag paints the console run, the log file and a plain run stay clean."""
+    mod = load_runner(RUNNER, "colour_runner_e2e")
+
+    painted = h.run("08-color", "--no-verify", "--color", "always")
+    assert painted.returncode == 0, f"exit {painted.returncode}\n{painted.stdout[-600:]}"
+    for key in ("thinking", "tool", "tool_result", "assistant", "header"):
+        assert mod.PALETTE[key] in painted.stdout, \
+            f"--color always must paint {key}: {painted.stdout[-800:]}"
+    assert mod.PALETTE["thinking"] + "[thinking] planning the change" in painted.stdout
+
+    log = h.log("08-color-run1.log")
+    assert "\x1b[" not in log, f"the per-attempt log must hold no escape codes: {log[:400]!r}"
+    assert "[thinking] planning the change" in log, "the live view is still logged, just plain"
+    assert "[tool bash]" in log and "[assistant] STATUS: DONE" in log
+    assert (h.archived / "08-color.md").exists()
+
+    (h.tasks / "09-plain.md").write_text(
+        '---\nstatus: todo\nattempts: 0\ntitle: "plain"\n---\n\n## Task\n\nno colours\n',
+        encoding="utf-8",
+    )
+    plain = h.run("09-plain", "--no-verify", "--no-color")
+    assert plain.returncode == 0, f"exit {plain.returncode}\n{plain.stdout[-600:]}"
+    assert "\x1b[" not in plain.stdout, f"--no-color must emit no escape codes: {plain.stdout[-600:]}"
+    assert "[tool bash]" in plain.stdout, "the live view itself still works without colours"
+
+    # Default `auto` with the runner's stdout captured (this self-test runs it through a pipe).
+    (h.tasks / "10-default.md").write_text(
+        '---\nstatus: todo\nattempts: 0\ntitle: "default"\n---\n\n## Task\n\nauto colours\n',
+        encoding="utf-8",
+    )
+    default = h.run("10-default", "--no-verify")
+    assert default.returncode == 0, f"exit {default.returncode}\n{default.stdout[-600:]}"
+    assert "\x1b[" not in default.stdout, "auto must stay plain when the output is not a terminal"
+    assert "[thinking] planning the change" in default.stdout
 
 
 if __name__ == "__main__":

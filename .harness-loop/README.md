@@ -67,6 +67,8 @@ Flags:
 | `--no-stream` | do not print the model's thinking/tools/replies live |
 | `--stream` | force live printing even if config disables it |
 | `--no-thinking` | live-print tools and replies, but hide thinking blocks |
+| `--color auto|always|never` | colour the live output per action kind (`auto` = only on a terminal) |
+| `--no-color` | same as `--color never` (the `NO_COLOR` variable does the same) |
 | `--raw` | also dump Pi's raw JSONL events to the console |
 | `--pi-bin PATH` | use a different pi binary |
 | `--dry-run` / `--list` | inspect without invoking Pi |
@@ -95,8 +97,49 @@ STATUS: DONE added CsvExporter.kt and CsvExporterTest.kt
 | `[tool <name>]` | `tool_execution_start` (arguments) and `tool_execution_end` (result, ms, error flag) |
 | `[pi]` | runner notes: turns, retries, compaction, Pi `stderr`, agent start/end |
 
+### Colours
+
+Each kind of action is printed in its own colour so the live view is scannable at a glance:
+
+| Kind | Colour | What it covers |
+| --- | --- | --- |
+| `thinking` | dim grey | the model's reasoning, streamed live |
+| `assistant` | green | the model's answer, streamed live (also a plain-text Pi's stdout) |
+| `tool` | cyan | a tool call and its arguments, `toolcall_start` |
+| `tool_result` | blue | what a tool returned (`tool_execution_update` / `_end`) |
+| `pi` | magenta | runner notes: turns, agent start/end, compaction, retries of Pi |
+| `prompt` | yellow | what the runner hands the model: the piped prompt, the failing output on a retry |
+| `warning` | bright yellow | Pi `stderr`, skipped tasks |
+| `error` | red | an error tool result, an assistant/stream error, a failed retry or check |
+| `header` | bold | attempt and verification headers |
+
+`PALETTE` in `runner.py` holds the codes; verification output lines are coloured by what they
+say (`failed`/`error` red, `passed`/`success` green) via `check_output_color`.
+
+Colours are the **runner's** work, not a shell feature: Pi runs as a child process in
+`--mode json`, so its own stdout is JSON and can never be coloured, and the runner is the one
+that renders that stream. What it writes are plain ANSI escape codes on its own stdout, which
+any modern terminal interprets — Git Bash/MSYS2, macOS Terminal and iTerm2 (bash or zsh),
+Windows Terminal / conhost. Nothing bash/zsh/Git-Bash-specific is configured, so the harness
+stays repository and shell agnostic. The only real dependency — "is this a terminal that
+understands ANSI?" — is detected instead of assumed (`color_requested`):
+
+- output that is not a terminal (a pipe, `> file`, the `logs/` writer) is never coloured,
+- `NO_COLOR` (any value) disables colour for everything, `FORCE_COLOR` enables it anyway,
+  `TERM=dumb` disables it — the usual conventions, so a wrapper can override the runner,
+- on Windows, VT processing is switched on with `SetConsoleMode`
+  (`ENABLE_VIRTUAL_TERMINAL_PROCESSING`, stdlib `ctypes`) before anything is coloured; if that
+  fails (an old conhost) the runner prints plain text rather than raw escape codes,
+- `--color always` forces the codes even when the terminal check fails, except on a Windows
+  console whose VT mode cannot be enabled — there it prints plain and says why.
+
+Config keys: `color` (`auto` by default, `always`, `never`).
+Colours never reach `logs/`: the transcript the runner writes there is kept escape-free, so a
+log is still plain text you can grep, pipe or diff.
+
 Config keys: `stream_output` (default `true`), `stream_thinking` (default `true`, `false`
-hides reasoning), `stream_raw` (default `false`, prints the JSONL records verbatim).
+hides reasoning), `stream_raw` (default `false`, prints the JSONL records verbatim),
+`color` (default `auto`).
 Tool arguments are truncated to 400 characters and tool results to 1500 in the live view;
 nothing is truncated in the logs.
 
@@ -207,7 +250,7 @@ throwaway repo (its own git repo, a fake `pi`, a fake test command) and asserts 
 recorded. It never touches your tasks, sessions or logs:
 
 ```powershell
-python .harness-loop\selftest.py     # 7 scenarios, exit 0 when all pass
+python .harness-loop\selftest.py     # 9 scenarios, exit 0 when all pass
 ```
 
 | Scenario | Asserts |
@@ -219,6 +262,8 @@ python .harness-loop\selftest.py     # 7 scenarios, exit 0 when all pass
 | E | `--no-verify --no-require-tests` leaves the STATUS line in charge |
 | F | `STATUS: BLOCKED` is not retried |
 | G | a frontmatter whose closing `---` an older runner dropped is read and repaired; `depends_on: nothing` is not a prerequisite |
+| H | live-view colours: one ANSI colour per action kind, `NO_COLOR`/`FORCE_COLOR`/`auto` rules, and a transcript with no escape codes |
+| I | a real runner run: `--color always` paints the console, `--no-color` and the piped default stay plain, `logs/` hold no escape codes |
 
 ## Notes
 
