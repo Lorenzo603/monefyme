@@ -115,7 +115,7 @@ fun ExpensePieChart(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(390.dp)
+            .height(450.dp)
             .drawBehind { drawRect(backgroundColor) },
     ) {
         val activeCount = slicesWithMeta.size.coerceAtMost(slotFactors.size)
@@ -139,7 +139,7 @@ fun ExpensePieChart(
         val iconSizePx = with(density) { iconSize.toPx() }
         val xLimitPx = with(density) { (maxWidth / 2f - (iconSize / 2f) - 4.dp).toPx() }
         val yLimitPx = with(density) {
-            (390.dp / 2f - (iconSize / 2f) - percentageLabelGap - percentageLabelHeight - 4.dp).toPx()
+            (450.dp / 2f - (iconSize / 2f) - percentageLabelGap - percentageLabelHeight - 4.dp).toPx()
         }
         val connectorStartRadiusPx = ringOuterRadiusPx + with(density) { 4.dp.toPx() }
         val lineWidthPx = with(density) { 1.2.dp.toPx() }
