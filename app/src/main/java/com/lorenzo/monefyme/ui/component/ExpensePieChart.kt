@@ -345,7 +345,7 @@ fun ExpensePieChart(
                         Text(
                             text = percentageLabel,
                             color = placement.visual.color,
-                            fontSize = 10.sp,
+                            fontSize = 14.sp,
                             lineHeight = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
