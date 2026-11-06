@@ -231,13 +231,14 @@ fun HomeScreen(
             IconButton(
                 onClick = onOpenTransactionHistory,
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(60.dp)
                     .testTag("balance_history_left"),
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Menu,
                     contentDescription = "Open transaction history",
                     tint = Color(0xFF7CC8A4),
+                    modifier = Modifier.size(40.dp),
                 )
             }
             Surface(
@@ -270,13 +271,14 @@ fun HomeScreen(
             IconButton(
                 onClick = onOpenTransactionHistory,
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(60.dp)
                     .testTag("balance_history_right"),
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Menu,
                     contentDescription = "Open transaction history",
                     tint = Color(0xFF7CC8A4),
+                    modifier = Modifier.size(40.dp),
                 )
             }
         }
@@ -285,7 +287,7 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 10.dp),
+                .padding(horizontal = 40.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -442,14 +444,14 @@ private fun RoundActionButton(
         shadowElevation = 0.dp,
         modifier = Modifier
             .testTag(tag)
-            .size(132.dp)
-            .shadow(2.dp, shape = CircleShape),
+            .size(118.dp)
+            .shadow(0.dp, shape = CircleShape),
         shape = CircleShape,
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(8.dp),
+                .padding(6.dp),
             contentAlignment = Alignment.Center,
         ) {
             Surface(
