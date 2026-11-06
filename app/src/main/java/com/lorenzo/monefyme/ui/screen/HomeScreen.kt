@@ -149,7 +149,7 @@ fun HomeScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .padding(horizontal = 16.dp, vertical = 7.dp),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -215,7 +215,7 @@ fun HomeScreen(
                 slices = pageExpenseSlices,
                 incomeCents = pageTotalIncome,
                 expenseCents = pageTotalExpense,
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = Modifier.padding(12.dp),
             )
         }
 
@@ -224,7 +224,7 @@ fun HomeScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp),
+                .padding(top = 20.dp, start = 12.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -243,11 +243,11 @@ fun HomeScreen(
             }
             Surface(
                 color = if (balance < 0) Color(0xFFF27982) else Color(0xFF70C889),
-                shadowElevation = 6.dp,
+                shadowElevation = 2.dp,
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 10.dp)
-                    .height(50.dp)
+                    .height(45.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -259,12 +259,12 @@ fun HomeScreen(
                     Text(
                         text = currencyAnnotatedString(
                             text = "Balance ${if (balance < 0) "-" else ""}€${centsToDisplay(abs(balance))}",
-                            baseFontSize = 20.sp,
+                            baseFontSize = 18.sp,
                         ),
                         color = Color.White,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Normal,
-                        fontSize = 20.sp,
+                        fontSize = 18.sp,
                     )
                 }
             }
@@ -282,7 +282,7 @@ fun HomeScreen(
                 )
             }
         }
-
+        
         Row(
             modifier = Modifier
                 .fillMaxWidth()
