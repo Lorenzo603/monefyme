@@ -127,7 +127,7 @@ fun ExpensePieChart(
         }
         val iconSize = iconSizeForActiveCount(activeCount)
 
-        val chartSize: Dp = 226.dp
+        val chartSize: Dp = 186.dp
         val strokeWidth: Dp = 50.dp
         val percentageLabelGap: Dp = 2.dp
         val percentageLabelHeight: Dp = 13.dp
@@ -238,7 +238,7 @@ fun ExpensePieChart(
                 }
 
             drawCircle(
-                color = ringBaseColor,
+                color = backgroundColor,
                 center = center,
                 radius = ringCenterRadiusPx,
                 style = Stroke(width = strokeWidthPx),
@@ -286,7 +286,7 @@ fun ExpensePieChart(
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier
                 .align(Alignment.Center)
-                .offset(y = (-7).dp),
+                .offset(y = (-12).dp),
         )
         Text(
             text = currencyAnnotatedString(
@@ -302,7 +302,7 @@ fun ExpensePieChart(
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier
                 .align(Alignment.Center)
-                .offset(y = 21.dp),
+                .offset(y = 12.dp),
         )
 
         // Each icon is rendered together with its percentage label in a single container, so the
