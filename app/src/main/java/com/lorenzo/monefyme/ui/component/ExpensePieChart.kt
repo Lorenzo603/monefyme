@@ -84,7 +84,7 @@ fun ExpensePieChart(
         if (!hasExpenseSlices) {
             return@remember emptyList()
         }
-        var startAngle = -90f
+        var startAngle = 0f
         slices.map { slice ->
             val sweep = (slice.totalCents.toFloat() / totalExpense.toFloat()) * 360f
             val mid = startAngle + (sweep / 2f)
