@@ -6,3 +6,25 @@ Fix stuff
 ```
 look at 01-bugfix-restore-run4.log 
 analyze and fix
+
+
+
+
+LOOP
+  fetch task
+  if HARD --> plan, reset session, fetch plan
+  implement
+  test, verify
+  create branch, commit, create PR, merge
+
+
+
+model is confused whether it needs to set status done or if status done is set by the harness. How to make it more robust?
+
+commit between tasks - do it outside harness, commit and push or open PR? ask internet
+
+increase timeout to 1800s (30 mins) -- actually remove timeout and just add step count so at least no files dropped in the middle of edit?
+
+analyze logs and find places where model was not sure, got stuck, or went out of its way.
+
+make sure it has access to internet to fetch latest docs
