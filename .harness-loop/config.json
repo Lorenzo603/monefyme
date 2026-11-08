@@ -3,7 +3,7 @@
   "model": "",
   "thinking": "medium",
   "tools": "",
-  "timeout_seconds": 1500,
+  "timeout_seconds": 3000,
   "log_tail_lines": 40,
   "ephemeral_sessions": false,
   "offline": false,

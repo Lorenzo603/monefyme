@@ -348,6 +348,58 @@ class MainViewModelTest {
         assertEquals("Groceries", items.single().description)
     }
 
+    // --- pie chart section click: which category the history must expand -----------------
+
+    @Test
+    fun noCategoryExpansionIsRequestedByDefault() = runTest(testDispatcher) {
+        val vm = viewModel()
+
+        assertNull(vm.categoryExpansionRequest.value)
+        assertNull(vm.consumeCategoryExpansionRequest())
+    }
+
+    @Test
+    fun requestingCategoryExpansionIsVisibleToTheTransactionHistory() = runTest(testDispatcher) {
+        val vm = viewModel()
+
+        vm.requestCategoryExpansion("Food")
+
+        assertEquals("Food", vm.categoryExpansionRequest.value)
+    }
+
+    @Test
+    fun consumingTheExpansionRequestAppliesItExactlyOnce() = runTest(testDispatcher) {
+        val vm = viewModel()
+        vm.requestCategoryExpansion("Transport")
+
+        assertEquals("Transport", vm.consumeCategoryExpansionRequest())
+        assertNull(
+            "A consumed request must not expand the accordion again on the next recomposition.",
+            vm.consumeCategoryExpansionRequest(),
+        )
+        assertNull(vm.categoryExpansionRequest.value)
+    }
+
+    @Test
+    fun latestClickedCategoryIsTheOneToExpand() = runTest(testDispatcher) {
+        val vm = viewModel()
+
+        vm.requestCategoryExpansion("Food")
+        vm.requestCategoryExpansion("Utilities")
+
+        assertEquals("Utilities", vm.consumeCategoryExpansionRequest())
+    }
+
+    @Test
+    fun blankCategoryRequestsNothing() = runTest(testDispatcher) {
+        val vm = viewModel()
+
+        vm.requestCategoryExpansion("   ")
+
+        assertNull(vm.categoryExpansionRequest.value)
+        assertNull(vm.consumeCategoryExpansionRequest())
+    }
+
     private fun transactionItem() = TransactionListItem(
         id = 1L,
         dateEpochDay = YearMonth.of(2020, 1).atDay(5).toEpochDay(),

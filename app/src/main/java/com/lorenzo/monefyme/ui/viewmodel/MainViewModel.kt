@@ -61,6 +61,13 @@ class MainViewModel(
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
 
+    /**
+     * Category whose transaction-history accordion must open: set when a pie chart section is
+     * clicked and cleared by [consumeCategoryExpansionRequest], so the expansion applies once.
+     */
+    private val _categoryExpansionRequest = MutableStateFlow<String?>(null)
+    val categoryExpansionRequest: StateFlow<String?> = _categoryExpansionRequest.asStateFlow()
+
     fun previousMonth() {
         selectMonth(_selectedMonth.value.minusMonths(1))
     }
@@ -82,6 +89,23 @@ class MainViewModel(
 
     fun observeMonthExpenseSlices(month: YearMonth): kotlinx.coroutines.flow.Flow<List<ExpenseSlice>> {
         return repository.observeMonthExpenseSlices(month)
+    }
+
+    /** Ask the transaction history to open with [categoryName]'s accordion expanded. */
+    fun requestCategoryExpansion(categoryName: String) {
+        _categoryExpansionRequest.value = categoryName.trim().takeIf { it.isNotEmpty() }
+    }
+
+    /**
+     * The pending category expansion request, or null when there is none. Reading it consumes it:
+     * the same click never expands the accordion a second time.
+     */
+    fun consumeCategoryExpansionRequest(): String? {
+        val pending = _categoryExpansionRequest.value
+        if (pending != null) {
+            _categoryExpansionRequest.value = null
+        }
+        return pending
     }
 
     suspend fun saveTransaction(

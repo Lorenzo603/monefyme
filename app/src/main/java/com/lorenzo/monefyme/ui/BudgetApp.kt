@@ -61,7 +61,6 @@ fun BudgetApp(viewModel: MainViewModel) {
                             navController.navigate(Routes.AddIncome)
                         }
                     },
-                    onOpenTransactionHistorySwipe = { navController.navigate(Routes.TransactionHistory) },
                 )
             }
             composable(Routes.TransactionHistory) {
