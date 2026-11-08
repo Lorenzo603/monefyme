@@ -1,9 +1,10 @@
 ---
 status: todo
-attempts: 1
+attempts: 4
 title: "Transaction history - dragging"
 source: backlog.md
 depends_on: nothing
+---
 
 ## Task
 
