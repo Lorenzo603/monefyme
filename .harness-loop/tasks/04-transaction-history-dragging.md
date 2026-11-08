@@ -1,13 +1,12 @@
 ---
 status: todo
-attempts: 1
+attempts: 4
 title: "Transaction history - dragging"
 source: backlog.md
 depends_on: nothing
 ---
 
 ## Task
-
 
 The transaction history should be displayed by swiping up / dragging either the balance box or its anchors to the left and right.
 Dragging or swiping up those elements should result in the transaction history being shown little by little until it is shown completely.

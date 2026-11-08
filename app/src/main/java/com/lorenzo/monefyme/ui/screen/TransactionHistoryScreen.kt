@@ -39,7 +39,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,7 +49,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -75,18 +73,8 @@ fun TransactionHistoryScreen(
     val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
     val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
-    val expansionRequest by viewModel.categoryExpansionRequest.collectAsStateWithLifecycle()
     val categoriesMap = remember(allCategories) {
         allCategories.associateBy { it.id }
-    }
-
-    // Category whose accordion the pie chart click asked to open; consumed here so it applies once.
-    var categoryToExpand by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(expansionRequest) {
-        val requested = viewModel.consumeCategoryExpansionRequest()
-        if (requested != null) {
-            categoryToExpand = requested
-        }
     }
 
     var editorVisible by rememberSaveable { mutableStateOf(false) }
@@ -146,14 +134,6 @@ fun TransactionHistoryScreen(
 
             // Toggle grouping button
             var isGroupedByCategory by rememberSaveable { mutableStateOf(true) }
-            // A category accordion only exists in the category grouping, so an expansion request
-            // switches back to it.
-            LaunchedEffect(categoryToExpand) {
-                isGroupedByCategory = groupedByCategoryAfterExpansionRequest(
-                    isGroupedByCategory = isGroupedByCategory,
-                    requestedCategory = categoryToExpand,
-                )
-            }
             GroupingToggle(
                 isGroupedByCategory = isGroupedByCategory,
                 onToggle = { isGroupedByCategory = !isGroupedByCategory },
@@ -164,7 +144,6 @@ fun TransactionHistoryScreen(
                 transactions = transactions,
                 categoriesMap = categoriesMap,
                 isGroupedByCategory = isGroupedByCategory,
-                expandCategory = categoryToExpand,
                 onTransactionClick = { transaction ->
                     editingTransaction = transaction
                     editorVisible = true
@@ -221,11 +200,10 @@ private fun GroupingToggle(
 }
 
 @Composable
-internal fun TransactionGroupedList(
+private fun TransactionGroupedList(
     transactions: List<TransactionListItem>,
     categoriesMap: Map<Long, CategoryItem>,
     isGroupedByCategory: Boolean,
-    expandCategory: String? = null,
     onTransactionClick: (TransactionListItem) -> Unit,
 ) {
     val listState = rememberLazyListState()
@@ -239,23 +217,10 @@ internal fun TransactionGroupedList(
         }
     }
 
-    // Which groups the user opened. A group with no entry is collapsed, so every group - also the
-    // ones that appear later (new month, new group) - starts collapsed.
+    // Track which groups are expanded
     val expandedGroups = remember { mutableStateMapOf<String, Boolean>() }
-
-    // [expandCategory] (a pie chart click on that category's section) opens its accordion without
-    // the user touching anything. Applied once per requested category so it never overrides a
-    // header the user collapsed - or a group they opened themselves - afterwards.
-    val appliedExpansion = remember { mutableStateOf<String?>(null) }
-    val groupNames = groupedTransactions.keys.toList()
-    LaunchedEffect(expandCategory, groupNames) {
-        val category = expandCategory ?: return@LaunchedEffect
-        if (appliedExpansion.value == category) return@LaunchedEffect
-        appliedExpansion.value = category
-        groupsToExpand(groupNames, category, isGroupedByCategory).forEach { groupName ->
-            expandedGroups[groupName] = true
-        }
-    }
+    // Initially collapse all groups
+    groupedTransactions.keys.forEach { expandedGroups[it] = false }
 
     LazyColumn(
         state = listState,
@@ -263,77 +228,33 @@ internal fun TransactionGroupedList(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         groupedTransactions.forEach { (groupName, groupTransactions) ->
-            val isExpanded = isGroupExpanded(expandedGroups, groupName)
+            val isExpanded = expandedGroups[groupName]
 
-            item(key = "group_header_$groupName") {
+            item {
                 GroupHeader(
                     groupName = groupName,
                     groupTransactions = groupTransactions,
                     categoriesMap = categoriesMap,
                     isGroupedByCategory = isGroupedByCategory,
-                    isExpanded = isExpanded,
+                    isExpanded = isExpanded ?: false,
                     onClick = {
-                        expandedGroups[groupName] = expandedGroupsAfterToggle(expandedGroups, groupName)
+                        expandedGroups[groupName] = !(isExpanded ?: false)
                     },
                 )
             }
 
-            // A collapsed accordion shows its header only; clicking the header above expands it.
-            if (isExpanded) {
-                items(
-                    items = groupTransactions,
-                    key = { it.id },
-                ) { transaction ->
-                    TransactionRow(
-                        transaction = transaction,
-                        onClick = { onTransactionClick(transaction) },
-                    )
-                }
+            items(
+                items = groupTransactions,
+                key = { it.id },
+            ) { transaction ->
+                TransactionRow(
+                    transaction = transaction,
+                    onClick = { onTransactionClick(transaction) },
+                )
             }
         }
     }
 }
-
-/**
- * Accordion state of one transaction-history group: only groups the user clicked have an entry in
- * [expandedGroups], so an unknown (never clicked) group is collapsed.
- */
-internal fun isGroupExpanded(expandedGroups: Map<String, Boolean>, groupName: String): Boolean =
-    expandedGroups[groupName] == true
-
-/**
- * State of [groupName] after its header was clicked: that group's accordion flips on its own,
- * every other group keeps its state.
- */
-internal fun expandedGroupsAfterToggle(expandedGroups: Map<String, Boolean>, groupName: String): Boolean =
-    !isGroupExpanded(expandedGroups, groupName)
-
-/**
- * The group headers a click on [requestedCategory] opens: the group whose name is that category,
- * compared case- and whitespace-insensitively (the pie chart and the transactions may spell it
- * differently). Nothing is expanded when the list is grouped by date, when no category was
- * requested, or when no group matches it.
- */
-internal fun groupsToExpand(
-    groupNames: List<String>,
-    requestedCategory: String?,
-    isGroupedByCategory: Boolean,
-): List<String> {
-    if (!isGroupedByCategory || requestedCategory.isNullOrBlank()) return emptyList()
-    val target = normalizedGroupName(requestedCategory)
-    return groupNames.filter { normalizedGroupName(it) == target }
-}
-
-private fun normalizedGroupName(name: String): String = name.trim().lowercase()
-
-/**
- * Grouping to show once an expansion request arrives: category accordions only exist in the
- * category grouping, so a request for [requestedCategory] switches back to it.
- */
-internal fun groupedByCategoryAfterExpansionRequest(
-    isGroupedByCategory: Boolean,
-    requestedCategory: String?,
-): Boolean = if (requestedCategory != null) true else isGroupedByCategory
 
 @Composable
 private fun GroupHeader(
@@ -358,8 +279,7 @@ private fun GroupHeader(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .testTag("group_header_$groupName"),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFFEAF8F2),
@@ -444,8 +364,7 @@ private fun TransactionRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clickable(onClick = onClick)
-            .testTag("transaction_row_${transaction.id}"),
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.White,

@@ -42,7 +42,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -57,7 +56,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -67,11 +65,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.lorenzo.monefyme.data.model.TransactionListItem
 import com.lorenzo.monefyme.domain.TransactionType
 import com.lorenzo.monefyme.ui.component.CategoriesSidebar
 import com.lorenzo.monefyme.ui.component.ExpensePieChart
-import com.lorenzo.monefyme.ui.component.TransactionEditorDialog
+import com.lorenzo.monefyme.ui.util.currencyAnnotatedString
+import com.lorenzo.monefyme.ui.util.centsToDisplay
 import com.lorenzo.monefyme.ui.util.formatMonth
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
 import java.time.YearMonth
@@ -88,6 +86,7 @@ fun HomeScreen(
     onOpenTransactionHistory: () -> Unit,
     onOpenRestore: () -> Unit,
     onAddTransaction: (TransactionType) -> Unit,
+    onOpenTransactionHistorySwipe: () -> Unit,
 ) {
     val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val currentMonth = remember { YearMonth.now() }
@@ -138,25 +137,6 @@ fun HomeScreen(
 
     BackHandler(enabled = sidebarOpen) {
         sidebarOpen = false
-    }
-
-    // The month's transaction history is not a screen of its own here: it is dragged out from under
-    // the balance bar, so it opens and closes with the drag that reveals it.
-    val historyMotion = rememberTransactionHistoryMotion()
-    val categoriesById = remember(allCategories) { allCategories.associateBy { it.id } }
-    var editingTransaction by rememberSaveable { mutableStateOf<TransactionListItem?>(null) }
-    var historyEditorVisible by rememberSaveable { mutableStateOf(false) }
-
-    // The system back button closes the transaction history again the same way a click on the balance
-    // bar does, before it leaves the Home screen.
-    BackHandler(enabled = !historyMotion.isHidden) {
-        historyMotion.hide()
-    }
-
-    // ... unless an editor opened from that history is on screen: back closes it first.
-    BackHandler(enabled = historyEditorVisible) {
-        historyEditorVisible = false
-        editingTransaction = null
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -213,69 +193,94 @@ fun HomeScreen(
             modifier = Modifier.padding(top = 10.dp, start = 8.dp, end = 8.dp),
         )
 
-        // The area the balance bar travels through and the month's transaction history is revealed
-        // in: the month's pie charts sit at its top edge, the bar rests at its bottom edge, and
-        // dragging the bar up slides it (with its anchors) towards the top of the page while the
-        // month's transactions appear little by little in the space it vacates. Because this area is
-        // everything between the month ticker and the buttons underneath it, dragging the bar all the
-        // way shows the transaction history completely.
-        BoxWithConstraints(
+        HorizontalPager(
+            state = pagerState,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .testTag("transaction_history_area"),
-        ) {
-            // The area height is read straight out of this area's own layout constraints: a height
-            // measured once and handed over as a plain value would leave the bar travelling the height
-            // the area had before it was laid out (which is no height at all).
-            val areaDensity = LocalDensity.current
-            val historyAreaHeightPx = with(areaDensity) { maxHeight.toPx() }
+                .testTag("month_pager"),
+            beyondViewportPageCount = 1,
+        ) { page ->
+            val pageMonth = monthForPage(page)
+            val pageTransactions by viewModel.observeMonthTransactions(pageMonth)
+                .collectAsStateWithLifecycle(initialValue = emptyList())
+            val pageExpenseSlices by viewModel.observeMonthExpenseSlices(pageMonth)
+                .collectAsStateWithLifecycle(initialValue = emptyList())
+            val pageTotalExpense = pageTransactions
+                .filter { transaction -> transaction.transactionType == TransactionType.EXPENSE }
+                .sumOf { transaction -> transaction.amountCents }
+            val pageTotalIncome = pageTransactions
+                .filter { transaction -> transaction.transactionType == TransactionType.INCOME }
+                .sumOf { transaction -> transaction.amountCents }
+            ExpensePieChart(
+                slices = pageExpenseSlices,
+                incomeCents = pageTotalIncome,
+                expenseCents = pageTotalExpense,
+                modifier = Modifier.padding(12.dp),
+            )
+        }
 
-            HorizontalPager(
-                state = pagerState,
+        Spacer(modifier = Modifier.weight(1f))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 20.dp, start = 12.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            IconButton(
+                onClick = onOpenTransactionHistory,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("month_pager"),
-                beyondViewportPageCount = 1,
-            ) { page ->
-                val pageMonth = monthForPage(page)
-                val pageTransactions by viewModel.observeMonthTransactions(pageMonth)
-                    .collectAsStateWithLifecycle(initialValue = emptyList())
-                val pageExpenseSlices by viewModel.observeMonthExpenseSlices(pageMonth)
-                    .collectAsStateWithLifecycle(initialValue = emptyList())
-                val pageTotalExpense = pageTransactions
-                    .filter { transaction -> transaction.transactionType == TransactionType.EXPENSE }
-                    .sumOf { transaction -> transaction.amountCents }
-                val pageTotalIncome = pageTransactions
-                    .filter { transaction -> transaction.transactionType == TransactionType.INCOME }
-                    .sumOf { transaction -> transaction.amountCents }
-                ExpensePieChart(
-                    slices = pageExpenseSlices,
-                    incomeCents = pageTotalIncome,
-                    expenseCents = pageTotalExpense,
-                    modifier = Modifier.padding(12.dp),
-                    // Clicking a pie chart section opens the month's transaction history with that
-                    // category's accordion already expanded.
-                    onCategoryClick = { categoryName ->
-                        viewModel.requestCategoryExpansion(categoryName)
-                        onOpenTransactionHistory()
-                    },
+                    .size(60.dp)
+                    .testTag("balance_history_left"),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Menu,
+                    contentDescription = "Open transaction history",
+                    tint = Color(0xFF7CC8A4),
+                    modifier = Modifier.size(40.dp),
                 )
             }
-
-            // Declared after the pager, so the history and the bar that drags it open are drawn on
-            // top of the pie charts.
-            TransactionHistoryBalanceBar(
-                motion = historyMotion,
-                areaHeightPx = historyAreaHeightPx,
-                balanceCents = balance,
-                categoriesMap = categoriesById,
-                transactions = transactions,
-                onTransactionClick = { transaction ->
-                    editingTransaction = transaction
-                    historyEditorVisible = true
-                },
-            )
+            Surface(
+                color = if (balance < 0) Color(0xFFF27982) else Color(0xFF70C889),
+                shadowElevation = 2.dp,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 10.dp)
+                    .height(45.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {
+                        onOpenTransactionHistory()
+                    },
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = currencyAnnotatedString(
+                            text = "Balance ${if (balance < 0) "-" else ""}€${centsToDisplay(abs(balance))}",
+                            baseFontSize = 18.sp,
+                        ),
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Normal,
+                        fontSize = 18.sp,
+                    )
+                }
+            }
+            IconButton(
+                onClick = onOpenTransactionHistory,
+                modifier = Modifier
+                    .size(60.dp)
+                    .testTag("balance_history_right"),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Menu,
+                    contentDescription = "Open transaction history",
+                    tint = Color(0xFF7CC8A4),
+                    modifier = Modifier.size(40.dp),
+                )
+            }
         }
         
         Row(
@@ -342,21 +347,6 @@ fun HomeScreen(
                     sidebarOpen = false
                     onOpenRestore()
                 },
-            )
-        }
-
-        // Tapping a transaction of the transaction history the balance bar drags out edits it, the
-        // same dialog the month's transaction history screen uses.
-        if (historyEditorVisible && editingTransaction != null) {
-            TransactionEditorDialog(
-                existing = editingTransaction,
-                categories = allCategories.map { it.displayName },
-                onDismiss = {
-                    historyEditorVisible = false
-                    editingTransaction = null
-                },
-                onSave = viewModel::saveTransaction,
-                onDelete = viewModel::deleteTransaction,
             )
         }
     } // end Box
