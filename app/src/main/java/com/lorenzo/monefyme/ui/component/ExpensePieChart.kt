@@ -141,7 +141,7 @@ fun ExpensePieChart(
         val yLimitPx = with(density) {
             (450.dp / 2f - (iconSize / 2f) - percentageLabelGap - percentageLabelHeight - 4.dp).toPx()
         }
-        val connectorStartRadiusPx = ringOuterRadiusPx
+        val connectorStartRadiusPx = ringOuterRadiusPx + with(density) { 2.dp.toPx() }
         val lineWidthPx = with(density) { 1.2.dp.toPx() }
         val iconBufferPx = (iconSizePx / 2f) + with(density) { 3.dp.toPx() }
 
