@@ -9,6 +9,9 @@ Android mobile budgeting app (Kotlin). Application code lives in `app/src/main`,
 `app/src/test`, instrumentation/UI tests in `app/src/androidTest`. Build and tests run through the
 Gradle wrapper (`gradlew` / `gradlew.bat`).
 
+# Testing and troubleshooting
+When developing, assume the Android emulator is running, if does not run you can start it: `android emulator start medium_phone`.
+
 # Harness settings (`.harness-loop/`)
 Repository-specific settings for the task runner; `.harness-loop/rules.md` and `README.md` stay
 generic and point here for these values. `AGENTS.md` is also given to every Pi session, so follow
