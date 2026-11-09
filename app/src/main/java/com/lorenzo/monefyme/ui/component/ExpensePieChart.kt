@@ -2,6 +2,9 @@ package com.lorenzo.monefyme.ui.component
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -16,7 +19,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -24,7 +30,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -57,6 +66,10 @@ fun ExpensePieChart(
     val incomeLabelColor = if (isMonthEmpty) Color(0xFF8F9A9D) else Color(0xFF39B87A)
     val expenseLabelColor = if (isMonthEmpty) Color(0xFF8F9A9D) else Color(0xFFDE6A75)
     val ringBaseColor = if (hasExpenseSlices) Color(0xFFD7ECE1) else Color(0xFFBFC8C3)
+    // The category whose icon slot is currently pressed (mouse or finger held down on it).
+    // While it is pressed its slot is highlighted with a colored circle and the centre of the
+    // chart shows that category instead of the income/expense totals.
+    var pressedCategoryKey by remember { mutableStateOf<String?>(null) }
     val slotFactors = remember {
         listOf(
             // top row, left → right
@@ -111,6 +124,12 @@ fun ExpensePieChart(
             .groupBy { normalizedCategory(it.categoryName) }
             .mapValues { entry -> entry.value.sumOf { it.amountCents } }
     }
+
+    // Original (non-normalized) spelling of each category, used for the centre label.
+    val categoryDisplayNames = slices.associateBy(
+        { slice -> normalizedCategory(slice.categoryName) },
+        { slice -> slice.categoryName.trim() },
+    )
 
     BoxWithConstraints(
         modifier = modifier
@@ -281,42 +300,88 @@ fun ExpensePieChart(
         }
 
         val centreAmountFontSize = MaterialTheme.typography.titleMedium.fontSize
-        Text(
-            text = currencyAnnotatedString(
-                text = "€${centsToDisplay(displayedIncomeCents)}",
-                baseFontSize = centreAmountFontSize,
-            ),
-            color = incomeLabelColor,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .offset(y = (-12).dp),
-        )
-        Text(
-            text = currencyAnnotatedString(
-                text = if (isMonthEmpty) {
-                    "€${centsToDisplay(displayedExpenseCents)}"
-                } else {
-                    "-€${centsToDisplay(displayedExpenseCents)}"
-                },
-                baseFontSize = centreAmountFontSize,
-            ),
-            color = expenseLabelColor,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .offset(y = 12.dp),
-        )
+        val highlightedVisual = pressedCategoryKey?.let { categoryKey ->
+            pressedCategoryVisual(categoryKey, sliceVisualsByCategory)
+        }
+        if (highlightedVisual != null) {
+            // A category is being pressed: the centre shows that category's icon, name and total
+            // instead of the month's income and expense totals.
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .testTag("pie_chart_centre_category"),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(
+                    imageVector = highlightedVisual.icon,
+                    contentDescription = highlightedVisual.categoryKey,
+                    tint = highlightedVisual.color,
+                    modifier = Modifier.size(36.dp),
+                )
+                Text(
+                    text = categoryDisplayNames[highlightedVisual.categoryKey]
+                        ?: highlightedVisual.categoryKey,
+                    color = highlightedVisual.color,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                Text(
+                    text = highlightedCategoryLabel(
+                        highlightedVisual.categoryKey,
+                        expenseCentsByCategory,
+                        baseFontSize = centreAmountFontSize,
+                    ),
+                    color = highlightedVisual.color,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        } else {
+            Text(
+                text = currencyAnnotatedString(
+                    text = "€${centsToDisplay(displayedIncomeCents)}",
+                    baseFontSize = centreAmountFontSize,
+                ),
+                color = incomeLabelColor,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(y = (-12).dp)
+                    .testTag("pie_chart_centre_income"),
+            )
+            Text(
+                text = currencyAnnotatedString(
+                    text = if (isMonthEmpty) {
+                        "€${centsToDisplay(displayedExpenseCents)}"
+                    } else {
+                        "-€${centsToDisplay(displayedExpenseCents)}"
+                    },
+                    baseFontSize = centreAmountFontSize,
+                ),
+                color = expenseLabelColor,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(y = 12.dp)
+                    .testTag("pie_chart_centre_expense"),
+            )
+        }
 
         // Each icon is rendered together with its percentage label in a single container, so the
         // container offset alone controls the placement. The label slot is reserved for every icon
         // (label or not) to keep all icons on the ring.
         val iconLabelSlotHeight: Dp = percentageLabelGap + percentageLabelHeight
+        val highlightRingGap: Dp = 3.dp
         iconPlacements.forEach { placement ->
             val labelX = placement.xFactor * xLimitPx
             val labelY = placement.yFactor * yLimitPx
+            val isHighlighted = isCategoryHighlighted(pressedCategoryKey, placement.connectorCategoryKey)
+            val highlightedVisual = placement.visual.takeIf { isHighlighted }
             Column(
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -328,8 +393,29 @@ fun ExpensePieChart(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(iconSize)
-                        .background(color = backgroundColor, shape = CircleShape),
+                        .size(iconSize + highlightRingGap * 2)
+                        .drawBehind {
+                            // Colored circle around the icon while its category is pressed.
+                            val ringColor = highlightedVisual?.color
+                            if (ringColor != null) {
+                                drawCircle(
+                                    color = ringColor,
+                                    radius = with(density) { (iconSize + highlightRingGap).toPx() },
+                                    style = Stroke(width = with(density) { 2.dp.toPx() }),
+                                )
+                            }
+                        }
+                        .background(color = backgroundColor, shape = CircleShape)
+                        .pointerInput(placement.connectorCategoryKey) {
+                            val categoryKey = placement.connectorCategoryKey ?: return@pointerInput
+                            awaitEachGesture {
+                                // Initial pass so the pager drag does not swallow the press.
+                                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                pressedCategoryKey = pressedCategoryAfterPress(pressedCategoryKey, categoryKey)
+                                waitForUpOrCancellation(PointerEventPass.Initial)
+                                pressedCategoryKey = pressedCategoryAfterRelease(pressedCategoryKey)
+                            }
+                        },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -369,12 +455,6 @@ private data class SliceMeta(
     val startAngle: Float,
     val sweepAngle: Float,
     val midAngle: Float,
-)
-
-private data class CategoryVisual(
-    val categoryKey: String,
-    val icon: ImageVector,
-    val color: Color,
 )
 
 private data class IconPlacement(
@@ -582,3 +662,50 @@ private fun percentageLabelFor(partCents: Long, totalCents: Long): String? {
     val rounded = percent.roundToInt()
     return if (rounded <= 0) "<1%" else "$rounded%"
 }
+
+// --- Press-and-hold highlight helpers (pure functions so JVM unit tests can cover the highlight
+// behaviour; the Compose rendering is asserted by ExpensePieChartHighlightTest and the UI wiring
+// by the instrumentation test PieChartHighlightUiTest). ---
+
+/** Category whose icon slot became pressed; only real (slice-backed) slots can be pressed. */
+internal fun pressedCategoryAfterPress(currentCategoryKey: String?, categoryKey: String?): String? {
+    if (categoryKey == null) return currentCategoryKey
+    return normalizedCategory(categoryKey)
+}
+
+/** Releasing the press (or cancelling the gesture) clears the highlight. */
+internal fun pressedCategoryAfterRelease(currentCategoryKey: String?): String? = null
+
+/** True when [categoryKey] is the slot of the currently pressed category. */
+internal fun isCategoryHighlighted(pressedCategoryKey: String?, categoryKey: String?): Boolean {
+    if (pressedCategoryKey == null || categoryKey == null) return false
+    return normalizedCategory(pressedCategoryKey) == normalizedCategory(categoryKey)
+}
+
+/** Visual of the pressed category, or null when the pressed key has no slice behind it. */
+internal fun pressedCategoryVisual(
+    pressedCategoryKey: String?,
+    visualsByCategory: Map<String, CategoryVisual>,
+): CategoryVisual? {
+    val key = pressedCategoryKey ?: return null
+    return visualsByCategory[normalizedCategory(key)]
+}
+
+/** Centre amount label for the pressed category. */
+internal fun highlightedCategoryLabel(
+    pressedCategoryKey: String?,
+    expenseCentsByCategory: Map<String, Long>,
+    baseFontSize: androidx.compose.ui.unit.TextUnit,
+): String {
+    val cents = pressedCategoryKey?.let { expenseCentsByCategory[normalizedCategory(it)] } ?: 0L
+    return currencyAnnotatedString(
+        text = "€${centsToDisplay(cents)}",
+        baseFontSize = baseFontSize,
+    ).text
+}
+
+internal data class CategoryVisual(
+    val categoryKey: String,
+    val icon: ImageVector,
+    val color: Color,
+)
