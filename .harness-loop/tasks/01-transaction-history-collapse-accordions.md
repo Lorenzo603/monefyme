@@ -4,6 +4,7 @@ attempts: 1
 title: "Transaction history - collapse accordions"
 source: backlog.md
 depends_on: nothing
+---
 
 ## Task
 
