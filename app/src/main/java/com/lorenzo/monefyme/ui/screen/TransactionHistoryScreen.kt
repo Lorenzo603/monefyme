@@ -49,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -200,7 +201,7 @@ private fun GroupingToggle(
 }
 
 @Composable
-private fun TransactionGroupedList(
+internal fun TransactionGroupedList(
     transactions: List<TransactionListItem>,
     categoriesMap: Map<Long, CategoryItem>,
     isGroupedByCategory: Boolean,
@@ -217,10 +218,9 @@ private fun TransactionGroupedList(
         }
     }
 
-    // Track which groups are expanded
+    // Which groups the user opened. A group with no entry is collapsed, so every group - also the
+    // ones that appear later (new month, new group) - starts collapsed.
     val expandedGroups = remember { mutableStateMapOf<String, Boolean>() }
-    // Initially collapse all groups
-    groupedTransactions.keys.forEach { expandedGroups[it] = false }
 
     LazyColumn(
         state = listState,
@@ -228,33 +228,50 @@ private fun TransactionGroupedList(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         groupedTransactions.forEach { (groupName, groupTransactions) ->
-            val isExpanded = expandedGroups[groupName]
+            val isExpanded = isGroupExpanded(expandedGroups, groupName)
 
-            item {
+            item(key = "group_header_$groupName") {
                 GroupHeader(
                     groupName = groupName,
                     groupTransactions = groupTransactions,
                     categoriesMap = categoriesMap,
                     isGroupedByCategory = isGroupedByCategory,
-                    isExpanded = isExpanded ?: false,
+                    isExpanded = isExpanded,
                     onClick = {
-                        expandedGroups[groupName] = !(isExpanded ?: false)
+                        expandedGroups[groupName] = expandedGroupsAfterToggle(expandedGroups, groupName)
                     },
                 )
             }
 
-            items(
-                items = groupTransactions,
-                key = { it.id },
-            ) { transaction ->
-                TransactionRow(
-                    transaction = transaction,
-                    onClick = { onTransactionClick(transaction) },
-                )
+            // A collapsed accordion shows its header only; clicking the header above expands it.
+            if (isExpanded) {
+                items(
+                    items = groupTransactions,
+                    key = { it.id },
+                ) { transaction ->
+                    TransactionRow(
+                        transaction = transaction,
+                        onClick = { onTransactionClick(transaction) },
+                    )
+                }
             }
         }
     }
 }
+
+/**
+ * Accordion state of one transaction-history group: only groups the user clicked have an entry in
+ * [expandedGroups], so an unknown (never clicked) group is collapsed.
+ */
+internal fun isGroupExpanded(expandedGroups: Map<String, Boolean>, groupName: String): Boolean =
+    expandedGroups[groupName] == true
+
+/**
+ * State of [groupName] after its header was clicked: that group's accordion flips on its own,
+ * every other group keeps its state.
+ */
+internal fun expandedGroupsAfterToggle(expandedGroups: Map<String, Boolean>, groupName: String): Boolean =
+    !isGroupExpanded(expandedGroups, groupName)
 
 @Composable
 private fun GroupHeader(
@@ -279,7 +296,8 @@ private fun GroupHeader(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .testTag("group_header_$groupName"),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFFEAF8F2),
@@ -364,7 +382,8 @@ private fun TransactionRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .testTag("transaction_row_${transaction.id}"),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.White,
