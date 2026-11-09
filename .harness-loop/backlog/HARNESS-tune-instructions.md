@@ -18,9 +18,6 @@ LOOP
   commit
 
 
-
-increase timeout to 1800s (30 mins) -- actually remove timeout and just add step count so at least no files dropped in the middle of edit?
-
 analyze logs and find places where model was not sure, got stuck, or went out of its way.
 --> get new logs
 

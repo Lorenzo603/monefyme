@@ -44,6 +44,8 @@ Read AGENTS.md first and follow it; nothing here overrides it.
   file, and report BLOCKED.
 - Do not delete, weaken or `@Ignore` an existing test just to make a verification pass; fix
   the code or the test's actual defect.
+- You may use bash (curl, wget) to fetch official documentation, API references, or
+  release notes when needed to complete a task.
 </rules>
 
 <finish>
