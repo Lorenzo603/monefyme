@@ -127,8 +127,8 @@ fun ExpensePieChart(
         }
         val iconSize = iconSizeForActiveCount(activeCount)
 
-        val chartSize: Dp = 186.dp
-        val strokeWidth: Dp = 50.dp
+        val chartSize: Dp = 220.dp
+        val strokeWidth: Dp = 35.dp
         val percentageLabelGap: Dp = 2.dp
         val percentageLabelHeight: Dp = 13.dp
         val density = LocalDensity.current
