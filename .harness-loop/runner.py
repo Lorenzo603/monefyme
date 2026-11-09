@@ -211,6 +211,10 @@ DEFAULT_CONFIG = {
     "require_tests": False,
     "source_globs": ["src/main/*"],   # production paths that trigger the test requirement (per repo in config.json)
     "test_globs": ["src/test/*"],  # paths that count as tests (per repo in config.json)
+    # Git: after every verified DONE, stage all changes and commit (and optionally push).
+    # The harness — not the model — owns this; models are told never to commit themselves.
+    "commit": False,  # stage and commit after each verified DONE
+    "push": False,    # push to origin after committing (only effective when commit is true)
 }
 
 
@@ -847,6 +851,35 @@ def changed_files() -> set[str] | None:
     return set(tracked or []) | set(untracked or [])
 
 
+def _commit_task(task: Task, note: str, cfg: dict) -> None:
+    """Stage all working-tree changes and commit with a task-scoped message.
+
+    Called by the harness only after verification passes, so git never sees
+    unverified work. Push is controlled by cfg['push'].
+    """
+    body = f"Task: {task.slug}"
+    if note:
+        body += f"\n{note}"
+    msg = f"{task.title}\n\n{body}"
+    steps: list[tuple[list[str], str]] = [
+        (["git", "add", "-A"], "git add"),
+        (["git", "commit", "-m", msg], "git commit"),
+    ]
+    if cfg["push"]:
+        steps.append((["git", "push"], "git push"))
+    for cmd, label in steps:
+        proc = subprocess.run(
+            cmd, cwd=REPO, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=60,
+        )
+        if proc.returncode != 0:
+            output = (proc.stderr or proc.stdout or "").strip()
+            say(f"[pi] {label} failed (exit {proc.returncode}): {output[:300]}", "warning")
+            return
+    action = "committed and pushed" if cfg["push"] else "committed"
+    say(f"{task.slug}: {action}", "ok")
+
+
 def normalize_command(cmd: str) -> str:
     """Make a POSIX-style command runnable in this shell (cmd.exe rejects a leading './')."""
     cmd = (cmd or "").strip()
@@ -1053,6 +1086,9 @@ def validate_config(cfg: dict) -> None:
         cfg["verify_timeout_seconds"] = 10
     # Colour decision, once per run: `color` is auto/always/never (see color_requested) and
     # cfg["use_color"] is the boolean every renderer below then uses.
+    if cfg["push"] and not cfg["commit"]:
+        print("note: push=true implies commit=true", file=sys.stderr)
+        cfg["commit"] = True
     cfg["use_color"] = color_requested(cfg["color"])
     set_colors(cfg["use_color"])
 
@@ -1263,6 +1299,8 @@ def run_task(task: Task, cfg: dict, args: argparse.Namespace) -> str:
                 say(f"{current.slug}: done (attempt {attempt}; no harness checks configured)", "ok")
             dest = archive_task(current)
             say(f"{current.slug}: archived to {dest.relative_to(REPO).as_posix()}", "ok")
+            if cfg["commit"]:
+                _commit_task(current, result.note, cfg)
             return DONE
 
         exhausted = rounds >= max_attempts
@@ -1364,6 +1402,21 @@ def main() -> int:
         action="store_true",
         help="also print Pi's raw JSONL events (full raw stream is always kept in logs/)",
     )
+    parser.add_argument(
+        "--commit",
+        action="store_true",
+        help="stage and commit after every verified DONE (overrides config commit=false)",
+    )
+    parser.add_argument(
+        "--no-commit",
+        action="store_true",
+        help="skip the commit step even when config has commit=true",
+    )
+    parser.add_argument(
+        "--push",
+        action="store_true",
+        help="push to origin after each commit (implies --commit)",
+    )
     args = parser.parse_args()
 
     cfg = load_config()
@@ -1405,6 +1458,14 @@ def main() -> int:
         cfg["color"] = "never"
     if args.raw:
         cfg["stream_raw"] = True
+    if args.commit:
+        cfg["commit"] = True
+    if args.no_commit:
+        cfg["commit"] = False
+        cfg["push"] = False
+    if args.push:
+        cfg["commit"] = True
+        cfg["push"] = True
     if args.thinking and args.thinking not in VALID_THINKING:
         print(f"error: --thinking must be one of {', '.join(sorted(VALID_THINKING))}", file=sys.stderr)
         return 2

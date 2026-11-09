@@ -121,6 +121,13 @@ elif slug == "06-eta":
     (main_dir / "Eta.kt").write_text("fun eta() = 6", encoding="utf-8")
     (test_dir / "EtaTest.kt").write_text("fun testEta() = true", encoding="utf-8")
     print("STATUS: DONE changed Eta.kt plus EtaTest.kt")
+elif slug in ("11-commit-pass", "12-commit-off"):
+    docs = ROOT / "docs"
+    docs.mkdir(parents=True, exist_ok=True)
+    (docs / (slug + ".md")).write_text("commit test notes", encoding="utf-8")
+    print("STATUS: DONE added docs/" + slug + ".md")
+elif slug == "13-commit-fail":
+    print("STATUS: FAILED cannot complete this task")
 else:
     print("STATUS: BLOCKED I need a decision from a human")
 '''
@@ -266,6 +273,10 @@ def main() -> int:
             check("G broken frontmatter and 'depends_on: nothing'", scenario_g, h, failures)
         check("H live view colours: one per action kind, logs stay plain", scenario_h, h, failures)
         check("I colour run end to end: --color always, --no-color, piped default", scenario_i, h, failures)
+        if git_available:
+            check("J commit=true: git commit made after verified DONE", scenario_j, h, failures)
+            check("K --no-commit: HEAD unchanged after DONE", scenario_k, h, failures)
+            check("L commit=true on failing task: HEAD unchanged", scenario_l, h, failures)
     finally:
         shutil.rmtree(str(repo), ignore_errors=True)
 
@@ -508,6 +519,50 @@ def scenario_i(h: Harness) -> None:
     assert default.returncode == 0, f"exit {default.returncode}\n{default.stdout[-600:]}"
     assert "\x1b[" not in default.stdout, "auto must stay plain when the output is not a terminal"
     assert "[thinking] planning the change" in default.stdout
+
+
+def scenario_j(h: Harness) -> None:
+    """commit=true: a git commit is made after every verified DONE."""
+    (h.tasks / "11-commit-pass.md").write_text(
+        '---\nstatus: todo\nattempts: 0\ntitle: "Add commit notes"\n---\n\n## Task\n\ncommit test\n',
+        encoding="utf-8",
+    )
+    before = git(h.repo, "rev-parse", "HEAD").stdout.strip()
+    proc = h.run("11-commit-pass", "--no-verify", "--no-require-tests", "--commit")
+    assert proc.returncode == 0, f"exit {proc.returncode}\n{proc.stdout[-600:]}"
+    after = git(h.repo, "rev-parse", "HEAD").stdout.strip()
+    assert after != before, "a new commit must be made after a verified DONE"
+    log_msg = git(h.repo, "log", "--format=%B", "-1").stdout
+    assert "Add commit notes" in log_msg, f"commit must include task title: {log_msg!r}"
+    assert "11-commit-pass" in log_msg, f"commit must include task slug: {log_msg!r}"
+
+
+def scenario_k(h: Harness) -> None:
+    """--no-commit: HEAD must stay unchanged even when the task succeeds."""
+    (h.tasks / "12-commit-off.md").write_text(
+        '---\nstatus: todo\nattempts: 0\ntitle: "commit off"\n---\n\n## Task\n\ncommit disabled\n',
+        encoding="utf-8",
+    )
+    before = git(h.repo, "rev-parse", "HEAD").stdout.strip()
+    proc = h.run("12-commit-off", "--no-verify", "--no-require-tests", "--no-commit")
+    assert proc.returncode == 0, f"exit {proc.returncode}\n{proc.stdout[-600:]}"
+    after = git(h.repo, "rev-parse", "HEAD").stdout.strip()
+    assert after == before, "no commit must be made when --no-commit is passed"
+
+
+def scenario_l(h: Harness) -> None:
+    """commit=true on a failing task: HEAD must not advance."""
+    (h.tasks / "13-commit-fail.md").write_text(
+        '---\nstatus: todo\nattempts: 0\ntitle: "commit fail"\n---\n\n## Task\n\nalways fails\n',
+        encoding="utf-8",
+    )
+    before = git(h.repo, "rev-parse", "HEAD").stdout.strip()
+    proc = h.run("13-commit-fail", "--commit", "--max-attempts", "1")
+    assert proc.returncode == 1, f"exit {proc.returncode}"
+    status, attempts, _ = h.read("13-commit-fail.md")
+    assert status == "failed", f"expected failed, got {status!r}"
+    after = git(h.repo, "rev-parse", "HEAD").stdout.strip()
+    assert after == before, "no commit must be made when the task fails"
 
 
 if __name__ == "__main__":

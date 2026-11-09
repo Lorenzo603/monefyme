@@ -24,5 +24,7 @@
   "test_globs": [
     "app/src/test/*",
     "app/src/androidTest/*"
-  ]
+  ],
+  "commit": true,
+  "push": true
 }
