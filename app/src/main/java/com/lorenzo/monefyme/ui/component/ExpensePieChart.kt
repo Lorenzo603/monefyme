@@ -141,7 +141,6 @@ fun ExpensePieChart(
         val yLimitPx = with(density) {
             (450.dp / 2f - (iconSize / 2f) - percentageLabelGap - percentageLabelHeight - 4.dp).toPx()
         }
-        val connectorStartRadiusPx = ringOuterRadiusPx + with(density) { 2.dp.toPx() }
         val lineWidthPx = with(density) { 1.2.dp.toPx() }
         val iconBufferPx = (iconSizePx / 2f) + with(density) { 3.dp.toPx() }
 
@@ -150,8 +149,8 @@ fun ExpensePieChart(
             CategoryConnector(
                 categoryKey = normalizedCategory(slice.categoryName),
                 amountCents = slice.amountCents,
-                anchorX = cos(radians).toFloat() * connectorStartRadiusPx,
-                anchorY = sin(radians).toFloat() * connectorStartRadiusPx,
+                anchorX = cos(radians).toFloat() * chartRadiusPx,
+                anchorY = sin(radians).toFloat() * chartRadiusPx,
             )
         }.distinctBy { it.categoryKey }
 
@@ -263,8 +262,8 @@ fun ExpensePieChart(
                     )
 
                     val angle = Math.toRadians(slice.midAngle.toDouble())
-                    val startX = center.x + cos(angle).toFloat() * connectorStartRadiusPx
-                    val startY = center.y + sin(angle).toFloat() * connectorStartRadiusPx
+                    val startX = center.x + cos(angle).toFloat() * chartRadiusPx
+                    val startY = center.y + sin(angle).toFloat() * chartRadiusPx
                     val target = connectorSlotByCategory[normalizedCategory(slice.categoryName)] ?: return@forEach
                     val dx = target.x - startX
                     val dy = target.y - startY
