@@ -35,7 +35,10 @@ Read AGENTS.md first and follow it; nothing here overrides it.
 - Edit inside this repo only. Do not create files outside it.
 - Never run `git commit`, `git push`, `git checkout`, `git reset`, or any other git write
   command. The human reviews and commits.
-- Do not edit files under `.harness-loop/` other than the task file's own status fields.
+- Do not edit files under `.harness-loop/`. The only exception is writing a
+  `## Questions for the human` section to the task file's body when reporting BLOCKED.
+  Never edit the frontmatter fields (status, attempts) — the runner updates those
+  automatically from your STATUS line; you do not need to touch them.
 - Ask no questions: you cannot get an answer mid-run. If the task is genuinely ambiguous or
   is missing prerequisites, stop, write a `## Questions for the human` section into the task
   file, and report BLOCKED.
@@ -44,7 +47,9 @@ Read AGENTS.md first and follow it; nothing here overrides it.
 </rules>
 
 <finish>
-End your final message with exactly one line, nothing after it:
+End your final message with exactly one line, nothing after it.
+The runner reads this STATUS line from your output and updates the task file — you do
+not need to, and must not, edit the task file's frontmatter yourself:
 
 STATUS: DONE      implementation complete and verified, list the checks you ran
 STATUS: BLOCKED   needs a human decision, missing access, or unmet prerequisites

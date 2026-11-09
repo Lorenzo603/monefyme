@@ -407,7 +407,8 @@ def prompt_instructions(task: Task, cfg: dict, prior_note: str = "") -> str:
     else:
         parts.append("- Verify with the commands listed in the project instructions.")
     parts += [
-        "End your reply with exactly one line:",
+        "End your reply with exactly one line (the runner reads it and updates the task file",
+        "automatically; do not edit the task file's frontmatter yourself):",
         "STATUS: DONE <what you changed>",
         "STATUS: BLOCKED <what you need from a human>",
         "STATUS: FAILED <what broke>",
