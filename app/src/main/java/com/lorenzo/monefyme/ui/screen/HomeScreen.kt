@@ -216,6 +216,12 @@ fun HomeScreen(
                 incomeCents = pageTotalIncome,
                 expenseCents = pageTotalExpense,
                 modifier = Modifier.padding(12.dp),
+                // Clicking a pie chart section opens the month's transaction history with that
+                // category's accordion already expanded.
+                onCategoryClick = { categoryName ->
+                    viewModel.requestCategoryExpansion(categoryName)
+                    onOpenTransactionHistory()
+                },
             )
         }
 

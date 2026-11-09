@@ -67,9 +67,42 @@ class HomeRestoreWiringTest {
                 buttonBlock.contains("onOpenRestore"),
             )
         }
+        val balanceBoxBlock = homeScreenSource
+            .substringAfter("Surface(\n                color = if (balance < 0)")
+            .substringBefore("\n            }")
         assertTrue(
-            "Clicking the balance box itself must keep opening the transaction history.",
-            countOccurrences(homeScreenSource, "onOpenTransactionHistory()") == 1,
+            "Clicking the balance box itself must keep opening the transaction history:\n" +
+                balanceBoxBlock,
+            balanceBoxBlock.contains("onOpenTransactionHistory()"),
+        )
+        assertTrue(
+            "Exactly two places call the transaction-history callback: the balance box and the pie " +
+                "chart section click handler (the two side buttons pass it as onClick).",
+            countOccurrences(homeScreenSource, "onOpenTransactionHistory()") == 2,
+        )
+    }
+
+    /**
+     * Clicking a section of the pie chart opens the month's transaction history with that category's
+     * accordion already expanded: HomeScreen must hand the chart a click handler that records the
+     * clicked category in the ViewModel (TransactionHistoryScreen expands it) and then navigates.
+     */
+    @Test
+    fun pieChartSectionClickOpensTransactionHistoryWithThatCategoryExpanded() {
+        val pieChartCall = homeScreenSource.substringAfter("ExpensePieChart(")
+            .substringBefore("\n            )")
+        assertTrue(
+            "HomeScreen must handle pie chart section clicks:\n$pieChartCall",
+            pieChartCall.contains("onCategoryClick ="),
+        )
+        assertTrue(
+            "The clicked category must be handed to the ViewModel so the history opens its accordion " +
+                "(MainViewModel.requestCategoryExpansion):\n$pieChartCall",
+            pieChartCall.contains("requestCategoryExpansion(categoryName)"),
+        )
+        assertTrue(
+            "The pie chart click must open the month's transaction history:\n$pieChartCall",
+            pieChartCall.contains("onOpenTransactionHistory()"),
         )
     }
 

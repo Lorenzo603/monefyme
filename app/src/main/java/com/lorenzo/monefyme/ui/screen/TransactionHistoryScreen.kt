@@ -39,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -74,8 +75,19 @@ fun TransactionHistoryScreen(
     val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
     val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
+    val expansionRequest by viewModel.categoryExpansionRequest.collectAsStateWithLifecycle()
     val categoriesMap = remember(allCategories) {
         allCategories.associateBy { it.id }
+    }
+
+    // Category whose accordion the pie chart click asked to open, taken out of the ViewModel here so
+    // it is applied exactly once.
+    var categoryToExpand by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(expansionRequest) {
+        val requested = viewModel.consumeCategoryExpansionRequest()
+        if (requested != null) {
+            categoryToExpand = requested
+        }
     }
 
     var editorVisible by rememberSaveable { mutableStateOf(false) }
@@ -135,6 +147,14 @@ fun TransactionHistoryScreen(
 
             // Toggle grouping button
             var isGroupedByCategory by rememberSaveable { mutableStateOf(true) }
+            // Category accordions only exist in the category grouping, so a request to expand one
+            // switches back to it.
+            LaunchedEffect(categoryToExpand) {
+                isGroupedByCategory = groupedByCategoryAfterExpansionRequest(
+                    isGroupedByCategory = isGroupedByCategory,
+                    requestedCategory = categoryToExpand,
+                )
+            }
             GroupingToggle(
                 isGroupedByCategory = isGroupedByCategory,
                 onToggle = { isGroupedByCategory = !isGroupedByCategory },
@@ -145,6 +165,7 @@ fun TransactionHistoryScreen(
                 transactions = transactions,
                 categoriesMap = categoriesMap,
                 isGroupedByCategory = isGroupedByCategory,
+                expandCategory = categoryToExpand,
                 onTransactionClick = { transaction ->
                     editingTransaction = transaction
                     editorVisible = true
@@ -205,6 +226,7 @@ internal fun TransactionGroupedList(
     transactions: List<TransactionListItem>,
     categoriesMap: Map<Long, CategoryItem>,
     isGroupedByCategory: Boolean,
+    expandCategory: String? = null,
     onTransactionClick: (TransactionListItem) -> Unit,
 ) {
     val listState = rememberLazyListState()
@@ -221,6 +243,20 @@ internal fun TransactionGroupedList(
     // Which groups the user opened. A group with no entry is collapsed, so every group - also the
     // ones that appear later (new month, new group) - starts collapsed.
     val expandedGroups = remember { mutableStateMapOf<String, Boolean>() }
+
+    // [expandCategory] - a click on that category's pie chart section - opens its accordion without
+    // the user touching anything. It is applied once per requested category, so it never overrides a
+    // header the user collapsed (or a group they opened) afterwards.
+    val appliedExpansion = remember { mutableStateOf<String?>(null) }
+    val groupNames = groupedTransactions.keys.toList()
+    LaunchedEffect(expandCategory, groupNames) {
+        val category = expandCategory ?: return@LaunchedEffect
+        if (appliedExpansion.value == category) return@LaunchedEffect
+        appliedExpansion.value = category
+        groupsToExpand(groupNames, category, isGroupedByCategory).forEach { groupName ->
+            expandedGroups[groupName] = true
+        }
+    }
 
     LazyColumn(
         state = listState,
@@ -272,6 +308,34 @@ internal fun isGroupExpanded(expandedGroups: Map<String, Boolean>, groupName: St
  */
 internal fun expandedGroupsAfterToggle(expandedGroups: Map<String, Boolean>, groupName: String): Boolean =
     !isGroupExpanded(expandedGroups, groupName)
+
+/**
+ * The group headers a click on [requestedCategory] opens: the group whose name is that category,
+ * compared case- and whitespace-insensitively (the pie chart and the transactions may spell it
+ * differently). Nothing is expanded when the list is grouped by date, when no category was requested,
+ * or when no group matches it.
+ */
+internal fun groupsToExpand(
+    groupNames: List<String>,
+    requestedCategory: String?,
+    isGroupedByCategory: Boolean,
+): List<String> {
+    if (!isGroupedByCategory || requestedCategory.isNullOrBlank()) return emptyList()
+    val target = normalizedGroupName(requestedCategory)
+    return groupNames.filter { normalizedGroupName(it) == target }
+}
+
+private fun normalizedGroupName(name: String): String = name.trim().lowercase()
+
+/**
+ * Grouping to show once an expansion request arrives: category accordions only exist in the category
+ * grouping, so a request for [requestedCategory] switches back to it. Without a request the grouping
+ * the user chose stays as it is.
+ */
+internal fun groupedByCategoryAfterExpansionRequest(
+    isGroupedByCategory: Boolean,
+    requestedCategory: String?,
+): Boolean = if (requestedCategory != null) true else isGroupedByCategory
 
 @Composable
 private fun GroupHeader(

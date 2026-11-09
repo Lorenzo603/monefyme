@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -33,6 +34,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -44,6 +46,7 @@ import com.lorenzo.monefyme.ui.category.DefaultCategories
 import com.lorenzo.monefyme.ui.util.currencyAnnotatedString
 import com.lorenzo.monefyme.ui.util.centsToDisplay
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -56,6 +59,13 @@ fun ExpensePieChart(
     incomeCents: Long,
     expenseCents: Long,
     modifier: Modifier = Modifier,
+    /*
+     * Called with the clicked category's name when a tap lands on one of the chart's sections (its
+     * colored ring arc) or on that category's icon slot; the caller uses it to open the transaction
+     * history with that category already expanded. A press that turns into a drag (the month pager
+     * swipe) is cancelled and reports no click.
+     */
+    onCategoryClick: ((String) -> Unit)? = null,
 ) {
     val totalExpense = slices.sumOf { it.totalCents }
     val backgroundColor = Color(0xFFEAF8F2)
@@ -131,6 +141,17 @@ fun ExpensePieChart(
         { slice -> slice.categoryName.trim() },
     )
 
+    // The ring sections in draw order, so a tap can be matched to the section it landed on.
+    val pieArcs = remember(slicesWithMeta) {
+        slicesWithMeta.map { slice ->
+            PieArc(
+                categoryKey = normalizedCategory(slice.categoryName),
+                startAngle = slice.startAngle,
+                sweepAngle = slice.sweepAngle,
+            )
+        }
+    }
+
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
@@ -151,6 +172,9 @@ fun ExpensePieChart(
         val percentageLabelGap: Dp = 2.dp
         val percentageLabelHeight: Dp = 13.dp
         val density = LocalDensity.current
+        val viewConfiguration = LocalViewConfiguration.current
+        // ViewConfiguration.touchSlop is a Float expressed in dp.
+        val touchSlopPx = with(density) { viewConfiguration.touchSlop.dp.toPx() }
         val chartRadiusPx = with(density) { chartSize.toPx() / 2f }
         val strokeWidthPx = with(density) { strokeWidth.toPx() }
         val ringCenterRadiusPx = chartRadiusPx - strokeWidthPx / 2f
@@ -237,7 +261,41 @@ fun ExpensePieChart(
         val iconPlacements = (activePlacements + extraPlacements)
             .sortedBy { it.slotIndex }
 
-        Canvas(modifier = Modifier.fillMaxSize()) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("pie_chart_arc_area")
+                .pointerInput(pieArcs) {
+                    // A tap on a ring section is a click on that category. A tap that is not on a
+                    // section (the chart's centre, the background), a press the month pager drag
+                    // swallowed, or a press that travelled over the chart (the month pager swipe)
+                    // reports nothing.
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        val categoryKey = categoryKeyAtPoint(
+                            arcs = pieArcs,
+                            centerX = size.width / 2f,
+                            centerY = size.height / 2f,
+                            x = down.position.x,
+                            y = down.position.y,
+                            innerRadiusPx = ringCenterRadiusPx - strokeWidthPx / 2f,
+                            outerRadiusPx = ringCenterRadiusPx + strokeWidthPx / 2f,
+                        )
+                        if (categoryKey == null) return@awaitEachGesture
+                        val up = waitForUpOrCancellation(PointerEventPass.Initial)
+                        if (up != null &&
+                            isPressWithoutDrag(
+                                downPosition = down.position,
+                                upPosition = up.position,
+                                touchSlopPx = touchSlopPx,
+                            ) &&
+                            onCategoryClick != null
+                        ) {
+                            onCategoryClick(categoryClickCategory(categoryKey, categoryDisplayNames))
+                        }
+                    }
+                },
+        ) {
             val arcTopLeft = androidx.compose.ui.geometry.Offset(
                 x = center.x - ringCenterRadiusPx,
                 y = center.y - ringCenterRadiusPx,
@@ -394,6 +452,7 @@ fun ExpensePieChart(
                 Box(
                     modifier = Modifier
                         .size(iconSize + highlightRingGap * 2)
+                        .testTag("pie_chart_icon_${placement.visual.categoryKey}")
                         .drawBehind {
                             // Colored circle around the icon while its category is pressed.
                             val ringColor = highlightedVisual?.color
@@ -410,10 +469,21 @@ fun ExpensePieChart(
                             val categoryKey = placement.connectorCategoryKey ?: return@pointerInput
                             awaitEachGesture {
                                 // Initial pass so the pager drag does not swallow the press.
-                                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                                 pressedCategoryKey = pressedCategoryAfterPress(pressedCategoryKey, categoryKey)
-                                waitForUpOrCancellation(PointerEventPass.Initial)
+                                val up = waitForUpOrCancellation(PointerEventPass.Initial)
                                 pressedCategoryKey = pressedCategoryAfterRelease(pressedCategoryKey)
+                                // A press that ends where it started is a click on that category's section.
+                                if (up != null &&
+                                    isPressWithoutDrag(
+                                        downPosition = down.position,
+                                        upPosition = up.position,
+                                        touchSlopPx = touchSlopPx,
+                                    ) &&
+                                    onCategoryClick != null
+                                ) {
+                                    onCategoryClick(categoryClickCategory(categoryKey, categoryDisplayNames))
+                                }
                             }
                         },
                     contentAlignment = Alignment.Center,
@@ -703,6 +773,77 @@ internal fun highlightedCategoryLabel(
         baseFontSize = baseFontSize,
     ).text
 }
+
+// --- Section click helpers (pure, so the JVM unit tests in ExpensePieChartClickTest can cover which
+// section a tap landed on; the gesture wiring is covered there too and end-to-end by
+// PieChartSectionClickUiTest). ---
+
+/** One drawn ring section: the category it belongs to and the angles it covers. */
+internal data class PieArc(
+    val categoryKey: String,
+    val startAngle: Float,
+    val sweepAngle: Float,
+)
+
+/**
+ * Angle (in degrees, 0 = 3 o'clock, growing clockwise) of the vector from the chart's centre to the
+ * point (centerX + dx, centerY + dy), normalized to [0, 360) - the convention drawArc and the slice
+ * angles use.
+ */
+internal fun angleDegreesAt(dx: Float, dy: Float): Float {
+    val degrees = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+    return ((degrees % 360f) + 360f) % 360f
+}
+
+/** True when [angle] is covered by the section starting at [startAngle] and sweeping [sweepAngle]. */
+internal fun isAngleWithinArc(angle: Float, startAngle: Float, sweepAngle: Float): Boolean {
+    if (sweepAngle <= 0f) return false
+    val start = ((startAngle % 360f) + 360f) % 360f
+    val relative = ((angle - start) % 360f + 360f) % 360f
+    return relative < sweepAngle
+}
+
+/**
+ * Category of the ring section the point (x, y) landed on, or null when the point is outside the ring
+ * band (the chart's hole, the background) or the month has no expense sections at all.
+ */
+internal fun categoryKeyAtPoint(
+    arcs: List<PieArc>,
+    centerX: Float,
+    centerY: Float,
+    x: Float,
+    y: Float,
+    innerRadiusPx: Float,
+    outerRadiusPx: Float,
+): String? {
+    if (arcs.isEmpty()) return null
+    val dx = x - centerX
+    val dy = y - centerY
+    val distance = sqrt(dx * dx + dy * dy)
+    if (distance < innerRadiusPx || distance > outerRadiusPx) return null
+    val angle = angleDegreesAt(dx = dx, dy = dy)
+    return arcs.firstOrNull { arc -> isAngleWithinArc(angle, arc.startAngle, arc.sweepAngle) }
+        ?.categoryKey
+}
+
+/**
+ * True when a press that lifted at [upPosition] is a click rather than a drag: it stayed within
+ * [touchSlopPx] of [downPosition]. Without this, the month pager swipe that starts on the chart would
+ * open the transaction history.
+ */
+internal fun isPressWithoutDrag(
+    downPosition: Offset,
+    upPosition: Offset,
+    touchSlopPx: Float,
+): Boolean {
+    val dx = upPosition.x - downPosition.x
+    val dy = upPosition.y - downPosition.y
+    return sqrt(dx * dx + dy * dy) <= touchSlopPx
+}
+
+/** Category name a click reports: the slice's original spelling, falling back to its key. */
+internal fun categoryClickCategory(categoryKey: String, displayNames: Map<String, String>): String =
+    displayNames[normalizedCategory(categoryKey)] ?: categoryKey
 
 internal data class CategoryVisual(
     val categoryKey: String,

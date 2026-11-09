@@ -288,6 +288,128 @@ class TransactionHistoryScreenTest {
         )
     }
 
+    // --- a pie chart section click opens the history with that category expanded -----------
+
+    @Test
+    fun requestedCategoryExpandsItsOwnGroupOnly() {
+        val groupNames = listOf("Food", "Transport", "Utilities")
+
+        assertEquals(listOf("Food"), groupsToExpand(groupNames, "Food", isGroupedByCategory = true))
+        assertEquals(
+            "Only the clicked category's accordion may open.",
+            listOf("Utilities"),
+            groupsToExpand(groupNames, "Utilities", isGroupedByCategory = true),
+        )
+    }
+
+    @Test
+    fun requestedCategoryMatchesTheGroupNameRegardlessOfSpelling() {
+        val groupNames = listOf("Food", "Transport")
+
+        assertEquals(listOf("Food"), groupsToExpand(groupNames, "food", isGroupedByCategory = true))
+        assertEquals(listOf("Food"), groupsToExpand(groupNames, " FOOD ", isGroupedByCategory = true))
+        assertEquals(listOf("Transport"), groupsToExpand(groupNames, "transport", isGroupedByCategory = true))
+    }
+
+    @Test
+    fun unknownOrBlankRequestedCategoryExpandsNothing() {
+        val groupNames = listOf("Food", "Transport")
+
+        assertTrue(groupsToExpand(groupNames, "Salary", isGroupedByCategory = true).isEmpty())
+        assertTrue(groupsToExpand(groupNames, "", isGroupedByCategory = true).isEmpty())
+        assertTrue(groupsToExpand(groupNames, "   ", isGroupedByCategory = true).isEmpty())
+        assertTrue(groupsToExpand(groupNames, null, isGroupedByCategory = true).isEmpty())
+        assertTrue(
+            "Without groups there is nothing to expand.",
+            groupsToExpand(emptyList(), "Food", isGroupedByCategory = true).isEmpty(),
+        )
+    }
+
+    @Test
+    fun dateGroupingHasNoCategoryAccordionToExpand() {
+        assertTrue(
+            "Grouped by date there is no Food accordion, so nothing may be claimed as expanded.",
+            groupsToExpand(listOf("15/01/2024", "16/01/2024"), "Food", isGroupedByCategory = false).isEmpty(),
+        )
+    }
+
+    @Test
+    fun requestingACategorySwitchesBackToTheCategoryGrouping() {
+        assertTrue(
+            "A pie chart click while grouped by date must show the category grouping, otherwise " +
+                "there is no accordion to expand.",
+            groupedByCategoryAfterExpansionRequest(isGroupedByCategory = false, requestedCategory = "Food"),
+        )
+        assertTrue(groupedByCategoryAfterExpansionRequest(isGroupedByCategory = true, requestedCategory = "Food"))
+        assertFalse(
+            "Without a request the grouping the user chose stays as it is.",
+            groupedByCategoryAfterExpansionRequest(isGroupedByCategory = false, requestedCategory = null),
+        )
+        assertTrue(
+            "Without a request the grouping the user chose stays as it is.",
+            groupedByCategoryAfterExpansionRequest(isGroupedByCategory = true, requestedCategory = null),
+        )
+    }
+
+    @Test
+    fun requestedCategoryIsExpandedWithoutAnyClick() {
+        val listBody = transactionGroupedListSource()
+
+        assertTrue(
+            "TransactionGroupedList must accept the category to expand:\n$listBody",
+            listBody.contains("expandCategory: String? = null"),
+        )
+        val appliedGuardIndex = listBody.indexOf("if (appliedExpansion.value == category) return@LaunchedEffect")
+        val expansionIndex = listBody.indexOf("groupsToExpand(groupNames, category, isGroupedByCategory)")
+        val toggleIndex = listBody.indexOf("expandedGroupsAfterToggle(expandedGroups, groupName)")
+        val headerIndex = listBody.indexOf("GroupHeader(")
+        assertTrue(
+            "TransactionGroupedList must open the requested category's accordion itself:\n$listBody",
+            expansionIndex >= 0 && listBody.contains("expandedGroups[groupName] = true"),
+        )
+        assertTrue(
+            "The expansion must be applied once per requested category, so it never fights a header " +
+                "the user toggled afterwards:\n$listBody",
+            appliedGuardIndex >= 0 && appliedGuardIndex < expansionIndex,
+        )
+        assertTrue(
+            "The requested expansion must happen before the groups are rendered:\n$listBody",
+            expansionIndex < headerIndex && expansionIndex < toggleIndex,
+        )
+    }
+
+    @Test
+    fun historyScreenConsumesThePieChartExpansionRequest() {
+        val screenBody = transactionHistoryScreenSource()
+
+        assertTrue(
+            "TransactionHistoryScreen must observe the requested category.",
+            screenBody.contains("viewModel.categoryExpansionRequest.collectAsStateWithLifecycle()"),
+        )
+        assertTrue(
+            "It must consume the request so the same click cannot force the accordion open again.",
+            screenBody.contains("viewModel.consumeCategoryExpansionRequest()"),
+        )
+        assertTrue(
+            "It must switch back to the category grouping so the accordion exists.",
+            screenBody.contains("groupedByCategoryAfterExpansionRequest("),
+        )
+        assertTrue(
+            "It must hand the category to the grouped list, which opens that accordion.",
+            screenBody.contains("expandCategory = categoryToExpand"),
+        )
+    }
+
+    /** Body of the TransactionHistoryScreen composable, read from the source. */
+    private fun transactionHistoryScreenSource(): String {
+        val source = readSource("app/src/main/java/com/lorenzo/monefyme/ui/screen/TransactionHistoryScreen.kt")
+        val start = source.indexOf("fun TransactionHistoryScreen(")
+        assertTrue(start >= 0)
+        val end = source.indexOf("private fun GroupingToggle(", start)
+        assertTrue(end > start)
+        return source.substring(start, end)
+    }
+
     /** Body of TransactionGroupedList, read from the source: the rendering itself needs an emulator. */
     private fun transactionGroupedListSource(): String {
         val source = readSource("app/src/main/java/com/lorenzo/monefyme/ui/screen/TransactionHistoryScreen.kt")

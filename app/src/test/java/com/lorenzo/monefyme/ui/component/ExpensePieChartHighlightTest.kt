@@ -130,7 +130,9 @@ class ExpensePieChartHighlightTest {
     @Test
     fun pressingAnIconSlotSetsAndReleasingClearsThePressedCategory() {
         val body = expensePieChartBody()
-        val gestureBlock = body.substringAfter("awaitEachGesture {")
+        // The icon-slot gesture: the ring area has its own gesture earlier in the file.
+        val gestureBlock = body.substringAfter(".testTag(\"pie_chart_icon_")
+            .substringAfter("awaitEachGesture {")
         val downIndex = gestureBlock.indexOf("awaitFirstDown")
         val pressIndex = gestureBlock.indexOf("pressedCategoryAfterPress")
         val upIndex = gestureBlock.indexOf("waitForUpOrCancellation")

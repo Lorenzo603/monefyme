@@ -19,6 +19,10 @@ import java.time.LocalDate
  * accordion - its transactions appear - and clicking it again collapses it. Other groups are not
  * affected by a click.
  *
+ * A category can also be handed to the list already expanded ([TransactionGroupedList]'s
+ * `expandCategory`, which is how a pie chart section click opens the history): that accordion is
+ * open from the start, the others stay collapsed, and the user can still toggle every group.
+ *
  * Requires a device/emulator: run with ./gradlew connectedDebugAndroidTest.
  */
 class TransactionHistoryAccordionTest {
@@ -67,15 +71,17 @@ class TransactionHistoryAccordionTest {
         ),
     )
 
-    private fun showGroupedList() {
+    private fun showGroupedList(expandCategory: String? = null, isGroupedByCategory: Boolean = true) {
         composeTestRule.setContent {
             TransactionGroupedList(
                 transactions = transactions,
                 categoriesMap = categories.associateBy { it.id },
-                isGroupedByCategory = true,
+                isGroupedByCategory = isGroupedByCategory,
+                expandCategory = expandCategory,
                 onTransactionClick = {},
             )
         }
+        composeTestRule.waitForIdle()
     }
 
     @Test
@@ -130,6 +136,62 @@ class TransactionHistoryAccordionTest {
         composeTestRule.onNodeWithTag("group_header_Food").performClick()
 
         composeTestRule.onNodeWithTag("transaction_row_11").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_13").assertIsDisplayed()
+    }
+
+    // --- opened from a pie chart section click: that category's accordion is already expanded ---
+
+    @Test
+    fun requestedCategoryOpensItsAccordionWithoutAnyClick() {
+        showGroupedList(expandCategory = "Food")
+
+        composeTestRule.onNodeWithTag("transaction_row_11").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("transaction_row_12").assertIsDisplayed()
+        // Only the clicked category's accordion opens.
+        composeTestRule.onNodeWithTag("transaction_row_13").assertDoesNotExist()
+    }
+
+    @Test
+    fun requestedCategoryOpensItsAccordionWhateverItsSpelling() {
+        // The pie chart and the transactions do not have to spell the category identically.
+        showGroupedList(expandCategory = "transport")
+
+        composeTestRule.onNodeWithTag("transaction_row_13").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("transaction_row_11").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_12").assertDoesNotExist()
+    }
+
+    @Test
+    fun unknownRequestedCategoryOpensNoAccordion() {
+        showGroupedList(expandCategory = "Salary")
+
+        composeTestRule.onNodeWithTag("group_header_Food").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("transaction_row_11").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_12").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_13").assertDoesNotExist()
+    }
+
+    @Test
+    fun requestedCategoryIsStillCollapsibleAndOthersStillToggleable() {
+        showGroupedList(expandCategory = "Food")
+
+        composeTestRule.onNodeWithTag("group_header_Food").performClick()
+        composeTestRule.onNodeWithTag("transaction_row_11").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_12").assertDoesNotExist()
+
+        composeTestRule.onNodeWithTag("group_header_Transport").performClick()
+        composeTestRule.onNodeWithTag("transaction_row_13").assertIsDisplayed()
+    }
+
+    @Test
+    fun requestedCategoryStaysExpandedAfterRecompositions() {
+        showGroupedList(expandCategory = "Food")
+
+        // Expanding another group re-renders the list; the requested accordion must not be
+        // forced open again, nor collapsed by it.
+        composeTestRule.onNodeWithTag("group_header_Transport").performClick()
+
+        composeTestRule.onNodeWithTag("transaction_row_11").assertIsDisplayed()
         composeTestRule.onNodeWithTag("transaction_row_13").assertIsDisplayed()
     }
 }
