@@ -221,12 +221,12 @@ fun ExpensePieChart(
 
         Canvas(modifier = Modifier.fillMaxSize()) {
             val arcTopLeft = androidx.compose.ui.geometry.Offset(
-                x = center.x - chartRadiusPx,
-                y = center.y - chartRadiusPx,
+                x = center.x - ringCenterRadiusPx,
+                y = center.y - ringCenterRadiusPx,
             )
             val arcSize = androidx.compose.ui.geometry.Size(
-                width = chartRadiusPx * 2f,
-                height = chartRadiusPx * 2f,
+                width = ringCenterRadiusPx * 2f,
+                height = ringCenterRadiusPx * 2f,
             )
             val connectorSlotByCategory = iconPlacements
                 .filter { it.connectorCategoryKey != null }
@@ -238,10 +238,16 @@ fun ExpensePieChart(
                 }
 
             drawCircle(
-                color = backgroundColor,
+                color = ringBaseColor,
                 center = center,
                 radius = ringCenterRadiusPx,
                 style = Stroke(width = strokeWidthPx),
+            )
+
+            drawCircle(
+                color = backgroundColor,
+                center = center,
+                radius = ringCenterRadiusPx - strokeWidthPx / 2f,
             )
 
             if (hasExpenseSlices) {
