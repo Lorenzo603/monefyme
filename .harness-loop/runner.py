@@ -191,6 +191,8 @@ DEFAULT_CONFIG = {
     "thinking": "",       # empty -> model default
     "tools": "",          # empty -> Pi default (read, bash, edit, write)
     "timeout_seconds": 1500,
+    "timeout_grace_seconds": 300,  # extra seconds to let an in-progress tool finish after the soft deadline
+    "max_turns": 0,                # max Pi turns per session (0 = unlimited); enforced at turn boundaries
     "ephemeral_sessions": False,
     "log_tail_lines": 40,
     "offline": False,     # true -> pass --offline (never reach Pi's model catalog)
@@ -736,10 +738,14 @@ def _pump(pipe, sink: queue.Queue, name: str) -> None:
             pass
 
 
-def stream_pi_process(proc: subprocess.Popen, cfg: dict) -> tuple[str, str, str, str, bool]:
+def stream_pi_process(proc: subprocess.Popen, cfg: dict) -> tuple[str, str, str, str, bool, bool, int]:
     """Drain Pi while it runs, live-printing the model's work.
 
-    Returns (raw stdout text, raw stderr text, assistant text, transcript, timed_out).
+    Returns (raw stdout text, raw stderr text, assistant text, transcript, timed_out,
+    json_mode, turn_count).
+    The timeout is tool-boundary-aware in JSON/streaming mode: when the wall-clock deadline
+    fires while a tool call is in progress, the process is only killed once that tool finishes
+    (or after timeout_grace_seconds, whichever comes first).
     stdout is read continuously on purpose: a stalled reader can block Pi.
     """
     view = LiveView(
@@ -759,14 +765,39 @@ def stream_pi_process(proc: subprocess.Popen, cfg: dict) -> tuple[str, str, str,
     out_lines: list[str] = []
     err_lines: list[str] = []
     timed_out = False
+    in_tool = False           # True while a tool_execution_start/end pair is open
+    turn_count = 0            # number of turn_start events seen
+    soft_timed_out = False    # deadline passed; waiting for the in-progress tool to finish
+    max_turns = cfg.get("max_turns", 0)
     deadline = time.monotonic() + cfg["timeout_seconds"]
+    grace = cfg.get("timeout_grace_seconds", 120)
+    hard_deadline = deadline + grace
     closed = 0
+
+    def _at_boundary() -> None:
+        """Kill the process when we are at a safe tool boundary (not mid-tool-call)."""
+        nonlocal timed_out
+        if in_tool:
+            return
+        if soft_timed_out or (max_turns and turn_count >= max_turns):
+            timed_out = True
+            _terminate(proc)
 
     while closed < 2:
         try:
             name, chunk = sink.get(timeout=1.0)
         except queue.Empty:
-            if time.monotonic() > deadline:
+            now = time.monotonic()
+            if not soft_timed_out and now > deadline:
+                soft_timed_out = True
+                if cfg["stream_output"] and in_tool:
+                    view.line(
+                        f"soft timeout: {cfg['timeout_seconds']}s deadline passed while a tool "
+                        f"is running; waiting up to {grace}s for it to finish",
+                        "warning",
+                    )
+                _at_boundary()
+            elif soft_timed_out and now > hard_deadline:
                 timed_out = True
                 _terminate(proc)
             continue
@@ -793,7 +824,16 @@ def stream_pi_process(proc: subprocess.Popen, cfg: dict) -> tuple[str, str, str,
             continue
         if isinstance(obj, dict):
             json_mode = True
+            kind = obj.get("type")
+            if kind == "tool_execution_start":
+                in_tool = True
+            elif kind == "tool_execution_end":
+                in_tool = False
+            elif kind == "turn_start":
+                turn_count += 1
             view.event(obj)
+            if kind in ("tool_execution_end", "turn_end"):
+                _at_boundary()
         else:
             view.echo(text, "assistant")
 
@@ -810,6 +850,7 @@ def stream_pi_process(proc: subprocess.Popen, cfg: dict) -> tuple[str, str, str,
         "\n".join(view.transcript),
         timed_out,
         json_mode,
+        turn_count,
     )
 
 
@@ -1076,6 +1117,12 @@ def validate_config(cfg: dict) -> None:
     if cfg["timeout_seconds"] < 10:
         print("warning: timeout_seconds is too small, using 10", file=sys.stderr)
         cfg["timeout_seconds"] = 10
+    if cfg["timeout_grace_seconds"] < 0:
+        print("warning: timeout_grace_seconds must be >= 0, using 0", file=sys.stderr)
+        cfg["timeout_grace_seconds"] = 0
+    if cfg["max_turns"] < 0:
+        print("warning: max_turns must be >= 0, using 0", file=sys.stderr)
+        cfg["max_turns"] = 0
     if cfg["log_tail_lines"] < 1:
         cfg["log_tail_lines"] = DEFAULT_CONFIG["log_tail_lines"]
     if cfg["max_attempts"] < 1:
@@ -1205,7 +1252,7 @@ def run_attempt(
     except OSError:
         pass
 
-    output, errput, assistant, transcript, timed_out, json_mode = stream_pi_process(proc, cfg)
+    output, errput, assistant, transcript, timed_out, json_mode, turn_count = stream_pi_process(proc, cfg)
     # The prompt is recorded too: a retry is only reviewable if you can see what the
     # previous failure was handed to the model.
     log_path.write_text(
@@ -1215,14 +1262,13 @@ def run_attempt(
         encoding="utf-8",
     )
     if timed_out:
-        say(f"{task.slug}: timed out after {cfg['timeout_seconds']}s", "error")
-        return Attempt(
-            FAILED,
-            f"timed out after {cfg['timeout_seconds']}s",
-            [],
-            log_path.name,
-            proc.returncode,
-        )
+        max_t = cfg.get("max_turns", 0)
+        if max_t and turn_count >= max_t:
+            detail = f"max_turns ({max_t}) reached after {turn_count} turn(s)"
+        else:
+            detail = f"timed out after {cfg['timeout_seconds']}s"
+        say(f"{task.slug}: {detail}", "error")
+        return Attempt(FAILED, detail, [], log_path.name, proc.returncode)
 
     # Prefer the authoritative assistant text for the STATUS line. In JSON mode the raw
     # stream contains the same text as escaped JSON, so it is only a last resort.
@@ -1337,6 +1383,18 @@ def main() -> int:
     parser.add_argument("--tools", help="Pi tool allowlist, e.g. read,grep,find,ls,edit,write")
     parser.add_argument("--timeout", type=int, help="seconds allowed per Pi session")
     parser.add_argument(
+        "--grace",
+        type=int,
+        help="seconds after the timeout deadline to wait for an in-progress tool to finish "
+             "(overrides timeout_grace_seconds in config)",
+    )
+    parser.add_argument(
+        "--max-turns",
+        type=int,
+        help="max Pi turns per task session, enforced at turn boundaries; 0 = unlimited "
+             "(overrides max_turns in config)",
+    )
+    parser.add_argument(
         "--max-attempts",
         type=int,
         help="how many Pi sessions one task may use before it is marked failed (default 3)",
@@ -1430,6 +1488,10 @@ def main() -> int:
             cfg[key] = value
     if args.timeout:
         cfg["timeout_seconds"] = args.timeout
+    if args.grace is not None:
+        cfg["timeout_grace_seconds"] = args.grace
+    if args.max_turns is not None:
+        cfg["max_turns"] = args.max_turns
     if args.max_attempts:
         cfg["max_attempts"] = args.max_attempts
     if args.verify:

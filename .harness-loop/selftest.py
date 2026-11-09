@@ -121,6 +121,10 @@ elif slug == "06-eta":
     (main_dir / "Eta.kt").write_text("fun eta() = 6", encoding="utf-8")
     (test_dir / "EtaTest.kt").write_text("fun testEta() = true", encoding="utf-8")
     print("STATUS: DONE changed Eta.kt plus EtaTest.kt")
+elif slug == "14-maxturn":
+    # Emit one complete JSONL turn so the max_turns guard can be exercised.
+    for event in colour_events("STATUS: DONE max turns test"):
+        print(json.dumps(event))
 elif slug in ("11-commit-pass", "12-commit-off"):
     docs = ROOT / "docs"
     docs.mkdir(parents=True, exist_ok=True)
@@ -151,6 +155,7 @@ TASKS_MD = {
     "04-delta.md": "source change with a matching test",
     "07-theta.md": "a task that needs a human decision",
     "08-color.md": "colour the live console output per action kind",
+    "14-maxturn.md": "test the max_turns guard",
 }
 
 
@@ -272,6 +277,7 @@ def main() -> int:
         if git_available:
             check("G broken frontmatter and 'depends_on: nothing'", scenario_g, h, failures)
         check("H live view colours: one per action kind, logs stay plain", scenario_h, h, failures)
+        check("M max_turns: session ends at a turn boundary", scenario_m, h, failures)
         check("I colour run end to end: --color always, --no-color, piped default", scenario_i, h, failures)
         if git_available:
             check("J commit=true: git commit made after verified DONE", scenario_j, h, failures)
@@ -563,6 +569,16 @@ def scenario_l(h: Harness) -> None:
     assert status == "failed", f"expected failed, got {status!r}"
     after = git(h.repo, "rev-parse", "HEAD").stdout.strip()
     assert after == before, "no commit must be made when the task fails"
+
+
+def scenario_m(h: Harness) -> None:
+    """max_turns: the runner terminates the session at a turn boundary and marks it failed."""
+    proc = h.run("14-maxturn", "--no-verify", "--no-require-tests", "--max-turns", "1")
+    assert proc.returncode == 1, f"exit {proc.returncode}\n{proc.stdout[-600:]}"
+    status, attempts, body = h.read("14-maxturn.md")
+    assert (status, attempts) == ("failed", 2), (status, attempts)
+    assert "max_turns" in body, "the max-turns reason must be recorded in the task file"
+    assert not (h.archived / "14-maxturn.md").exists(), "a failed task stays in tasks/"
 
 
 if __name__ == "__main__":
