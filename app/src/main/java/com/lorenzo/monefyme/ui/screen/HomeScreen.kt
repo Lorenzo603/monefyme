@@ -6,9 +6,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -75,9 +78,11 @@ import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -134,9 +139,20 @@ fun HomeScreen(
     val balance = totalIncome - totalExpense
 
     var sidebarOpen by rememberSaveable { mutableStateOf(false) }
+    var historyRevealOffset by remember { mutableStateOf(0f) }
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
 
     BackHandler(enabled = sidebarOpen) {
         sidebarOpen = false
+    }
+
+    BackHandler(enabled = historyRevealOffset > 0f) {
+        scope.launch {
+            animateRevealOffset(historyRevealOffset, 0f, density) { offset ->
+                historyRevealOffset = offset
+            }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -227,96 +243,46 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 20.dp, start = 12.dp, end = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            IconButton(
-                onClick = onOpenTransactionHistory,
-                modifier = Modifier
-                    .size(60.dp)
-                    .testTag("balance_history_left"),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Menu,
-                    contentDescription = "Open transaction history",
-                    tint = Color(0xFF7CC8A4),
-                    modifier = Modifier.size(40.dp),
-                )
-            }
-            Surface(
-                color = if (balance < 0) Color(0xFFF27982) else Color(0xFF70C889),
-                shadowElevation = 2.dp,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 10.dp)
-                    .height(45.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                    ) {
-                        onOpenTransactionHistory()
-                    },
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = currencyAnnotatedString(
-                            text = "Balance ${if (balance < 0) "-" else ""}€${centsToDisplay(abs(balance))}",
-                            baseFontSize = 18.sp,
-                        ),
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Normal,
-                        fontSize = 18.sp,
-                    )
+        // Balance box and action buttons with drag support
+        BalanceBoxSection(
+            balance = balance,
+            historyRevealOffset = historyRevealOffset,
+            onBalanceBoxDrag = { delta ->
+                historyRevealOffset = (historyRevealOffset + delta).coerceIn(0f, 1f)
+            },
+            onBalanceBoxClick = {
+                scope.launch {
+                    animateRevealOffset(historyRevealOffset, 1f, density) { offset ->
+                        historyRevealOffset = offset
+                    }
                 }
-            }
-            IconButton(
-                onClick = onOpenTransactionHistory,
-                modifier = Modifier
-                    .size(60.dp)
-                    .testTag("balance_history_right"),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Menu,
-                    contentDescription = "Open transaction history",
-                    tint = Color(0xFF7CC8A4),
-                    modifier = Modifier.size(40.dp),
-                )
-            }
-        }
-        
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 40.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            RoundActionButton(
-                symbol = "−",
-                borderColor = Color(0xFFF07F86),
-                symbolColor = Color(0xFFF07F86),
-                tag = "add_expense_button",
-                onClick = {
-                    onAddTransaction(TransactionType.EXPENSE)
-                },
-            )
-            RoundActionButton(
-                symbol = "+",
-                borderColor = Color(0xFF64D09B),
-                symbolColor = Color(0xFF64D09B),
-                tag = "add_income_button",
-                onClick = {
-                    onAddTransaction(TransactionType.INCOME)
-                },
-            )
-        }
+            },
+            onBalanceBoxSwipeDown = {
+                scope.launch {
+                    animateRevealOffset(historyRevealOffset, 0f, density) { offset ->
+                        historyRevealOffset = offset
+                    }
+                }
+            },
+            onAddTransaction = onAddTransaction,
+        )
         } // end Column (main content)
+
+        // Transaction history overlay
+        if (historyRevealOffset > 0f) {
+            TransactionHistoryOverlay(
+                viewModel = viewModel,
+                revealOffset = historyRevealOffset,
+                onClose = {
+                    scope.launch {
+                        animateRevealOffset(historyRevealOffset, 0f, density) { offset ->
+                            historyRevealOffset = offset
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
 
         // Scrim
         AnimatedVisibility(
@@ -356,6 +322,213 @@ fun HomeScreen(
             )
         }
     } // end Box
+}
+
+@Composable
+private fun BalanceBoxSection(
+    balance: Long,
+    historyRevealOffset: Float,
+    onBalanceBoxDrag: (Float) -> Unit,
+    onBalanceBoxClick: () -> Unit,
+    onBalanceBoxSwipeDown: () -> Unit,
+    onAddTransaction: (TransactionType) -> Unit,
+) {
+    val density = LocalDensity.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 20.dp, start = 12.dp, end = 12.dp)
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onVerticalDrag = { _, dragAmount ->
+                        // dragAmount is positive when dragging down, negative when dragging up
+                        val normalizedDelta = -dragAmount / 500f // normalize to 0-1 range
+                        onBalanceBoxDrag(normalizedDelta)
+                    },
+                    onDragEnd = {
+                        // Snap to either fully open or fully closed
+                        if (historyRevealOffset > 0.3f) {
+                            onBalanceBoxClick()
+                        } else {
+                            onBalanceBoxSwipeDown()
+                        }
+                    }
+                )
+            },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        IconButton(
+            onClick = onBalanceBoxClick,
+            modifier = Modifier
+                .size(60.dp)
+                .testTag("balance_history_left"),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Menu,
+                contentDescription = "Open transaction history",
+                tint = Color(0xFF7CC8A4),
+                modifier = Modifier.size(40.dp),
+            )
+        }
+        Surface(
+            color = if (balance < 0) Color(0xFFF27982) else Color(0xFF70C889),
+            shadowElevation = 2.dp,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 10.dp)
+                .height(45.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) {
+                    onBalanceBoxClick()
+                },
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = currencyAnnotatedString(
+                        text = "Balance ${if (balance < 0) "-" else ""}€${centsToDisplay(abs(balance))}",
+                        baseFontSize = 18.sp,
+                    ),
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 18.sp,
+                )
+            }
+        }
+        IconButton(
+            onClick = onBalanceBoxClick,
+            modifier = Modifier
+                .size(60.dp)
+                .testTag("balance_history_right"),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Menu,
+                contentDescription = "Open transaction history",
+                tint = Color(0xFF7CC8A4),
+                modifier = Modifier.size(40.dp),
+            )
+        }
+    }
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 40.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RoundActionButton(
+            symbol = "−",
+            borderColor = Color(0xFFF07F86),
+            symbolColor = Color(0xFFF07F86),
+            tag = "add_expense_button",
+            onClick = {
+                onAddTransaction(TransactionType.EXPENSE)
+            },
+        )
+        RoundActionButton(
+            symbol = "+",
+            borderColor = Color(0xFF64D09B),
+            symbolColor = Color(0xFF64D09B),
+            tag = "add_income_button",
+            onClick = {
+                onAddTransaction(TransactionType.INCOME)
+            },
+        )
+    }
+}
+
+@Composable
+private fun TransactionHistoryOverlay(
+    viewModel: MainViewModel,
+    revealOffset: Float,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
+    val transactions by viewModel.transactions.collectAsStateWithLifecycle()
+    val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
+    val categoriesMap = remember(allCategories) {
+        allCategories.associateBy { it.id }
+    }
+
+    val heightDp = 500.dp
+    val balanceBoxHeightDp = 150.dp  // Account for balance box and buttons
+    val heightPx = with(LocalDensity.current) { heightDp.toPx() }
+    val balanceBoxHeightPx = with(LocalDensity.current) { balanceBoxHeightDp.toPx() }
+    val offsetPx = revealOffset * (heightPx - balanceBoxHeightPx)
+
+    Box(
+        modifier = modifier
+            .graphicsLayer {
+                translationY = -heightPx + offsetPx + balanceBoxHeightPx
+            }
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(heightDp),
+            color = Color.White,
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                // Header with close button
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Transactions",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Outlined.Close, contentDescription = "Close")
+                    }
+                }
+
+                // Transaction list
+                TransactionGroupedList(
+                    transactions = transactions,
+                    categoriesMap = categoriesMap,
+                    isGroupedByCategory = true,
+                    expandCategory = null,
+                    onTransactionClick = { },
+                )
+            }
+        }
+    }
+}
+
+private suspend fun animateRevealOffset(
+    from: Float,
+    to: Float,
+    density: androidx.compose.ui.unit.Density,
+    onOffset: (Float) -> Unit,
+) {
+    val startTime = System.currentTimeMillis()
+    val duration = 300L
+    while (true) {
+        val elapsed = System.currentTimeMillis() - startTime
+        if (elapsed >= duration) {
+            onOffset(to)
+            break
+        }
+        val progress = elapsed.toFloat() / duration
+        val eased = progress * progress * (3 - 2 * progress) // cubic easing
+        val value = from + (to - from) * eased
+        onOffset(value)
+        delay(16)
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)

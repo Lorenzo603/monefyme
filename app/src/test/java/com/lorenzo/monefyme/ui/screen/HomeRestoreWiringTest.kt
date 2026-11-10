@@ -54,12 +54,18 @@ class HomeRestoreWiringTest {
 
     @Test
     fun balanceSideButtonsOpenTransactionHistoryNotRestore() {
+        // The balance box section now supports dragging to reveal history
+        assertTrue(
+            "HomeScreen must include the BalanceBoxSection composable for handling drag gestures:\n",
+            homeScreenSource.contains("BalanceBoxSection("),
+        )
+        
         for (tag in listOf("balance_history_left", "balance_history_right")) {
             val buttonBlock = buttonBlockWithTag(homeScreenSource, tag)
             assertTrue(
-                "The button next to the balance box ($tag) must open the month's transaction " +
-                    "history, same as clicking the balance box itself:\n$buttonBlock",
-                buttonBlock.contains("onClick = onOpenTransactionHistory"),
+                "The button next to the balance box ($tag) must trigger revealing the transaction " +
+                    "history overlay by calling onBalanceBoxClick:\n$buttonBlock",
+                buttonBlock.contains("onClick = onBalanceBoxClick"),
             )
             assertFalse(
                 "The button next to the balance box ($tag) must not open the Restore screen:\n" +
@@ -67,18 +73,14 @@ class HomeRestoreWiringTest {
                 buttonBlock.contains("onOpenRestore"),
             )
         }
-        val balanceBoxBlock = homeScreenSource
-            .substringAfter("Surface(\n                color = if (balance < 0)")
-            .substringBefore("\n            }")
+        
+        // Pie chart click still uses onOpenTransactionHistory for navigation
         assertTrue(
-            "Clicking the balance box itself must keep opening the transaction history:\n" +
-                balanceBoxBlock,
-            balanceBoxBlock.contains("onOpenTransactionHistory()"),
-        )
-        assertTrue(
-            "Exactly two places call the transaction-history callback: the balance box and the pie " +
-                "chart section click handler (the two side buttons pass it as onClick).",
-            countOccurrences(homeScreenSource, "onOpenTransactionHistory()") == 2,
+            "The pie chart section click must still open the transaction history for category " +
+                "expansion support.",
+            homeScreenSource.contains("onCategoryClick = { categoryName ->") &&
+                homeScreenSource.contains("viewModel.requestCategoryExpansion(categoryName)") &&
+                homeScreenSource.contains("onOpenTransactionHistory()"),
         )
     }
 
@@ -142,6 +144,22 @@ class HomeRestoreWiringTest {
         assertTrue(
             "The sidebar must keep its Restore entry (with the Restore icon) in the menu body.",
             categoriesSidebarSource.contains("Icons.Outlined.Restore"),
+        )
+    }
+
+    @Test
+    fun balanceBoxSectionSupportsDraggingToRevealHistory() {
+        assertTrue(
+            "BalanceBoxSection must support vertical drag gestures for revealing the history overlay:",
+            homeScreenSource.contains("detectVerticalDragGestures"),
+        )
+        assertTrue(
+            "HomeScreen must render the transaction history overlay when revealed:",
+            homeScreenSource.contains("TransactionHistoryOverlay("),
+        )
+        assertTrue(
+            "Dragging and clicking the balance box should trigger smooth animations:",
+            homeScreenSource.contains("animateRevealOffset"),
         )
     }
 
