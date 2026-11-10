@@ -54,18 +54,18 @@ class HomeRestoreWiringTest {
 
     @Test
     fun balanceSideButtonsOpenTransactionHistoryNotRestore() {
-        // The balance box section now supports dragging to reveal history
+        // The balance and history sheet now combines the balance box with the transaction history
         assertTrue(
-            "HomeScreen must include the BalanceBoxSection composable for handling drag gestures:\n",
-            homeScreenSource.contains("BalanceBoxSection("),
+            "HomeScreen must include the BalanceAndHistorySheet composable for handling drag gestures:\n",
+            homeScreenSource.contains("BalanceAndHistorySheet("),
         )
         
         for (tag in listOf("balance_history_left", "balance_history_right")) {
             val buttonBlock = buttonBlockWithTag(homeScreenSource, tag)
             assertTrue(
                 "The button next to the balance box ($tag) must trigger revealing the transaction " +
-                    "history overlay by calling onBalanceBoxClick:\n$buttonBlock",
-                buttonBlock.contains("onClick = onBalanceBoxClick"),
+                    "history overlay by calling onToggleHistoryFull:\n$buttonBlock",
+                buttonBlock.contains("onClick = { onToggleHistoryFull(true) }"),
             )
             assertFalse(
                 "The button next to the balance box ($tag) must not open the Restore screen:\n" +
@@ -150,12 +150,12 @@ class HomeRestoreWiringTest {
     @Test
     fun balanceBoxSectionSupportsDraggingToRevealHistory() {
         assertTrue(
-            "BalanceBoxSection must support vertical drag gestures for revealing the history overlay:",
+            "BalanceAndHistorySheet must support vertical drag gestures for revealing the history:",
             homeScreenSource.contains("detectVerticalDragGestures"),
         )
         assertTrue(
-            "HomeScreen must render the transaction history overlay when revealed:",
-            homeScreenSource.contains("TransactionHistoryOverlay("),
+            "HomeScreen must render the balance and history sheet when history is revealed:",
+            homeScreenSource.contains("BalanceAndHistorySheet("),
         )
         assertTrue(
             "Dragging and clicking the balance box should trigger smooth animations:",

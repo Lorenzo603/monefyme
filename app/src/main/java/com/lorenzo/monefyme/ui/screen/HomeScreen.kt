@@ -161,128 +161,135 @@ fun HomeScreen(
                 .fillMaxSize()
                 .drawMonefyBackground(),
         ) {
-        Surface(color = Color(0xFF74C792)) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 7.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = { sidebarOpen = true }) {
-                        Icon(Icons.Outlined.MoreVert, contentDescription = "More", tint = Color.White)
-                    }
-                }
-                Row(
+            Surface(color = Color(0xFF74C792)) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .padding(horizontal = 16.dp, vertical = 7.dp),
                 ) {
-                    Text(
-                        text = "Monefy",
-                        color = Color.White,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontFamily = FontFamily.Cursive,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "All accounts",
-                        color = Color(0xFFE7F4EC),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = { sidebarOpen = true }) {
+                            Icon(Icons.Outlined.MoreVert, contentDescription = "More", tint = Color.White)
+                        }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Monefy",
+                            color = Color.White,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontFamily = FontFamily.Cursive,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "All accounts",
+                            color = Color(0xFFE7F4EC),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
                 }
             }
-        }
 
-        MonthTicker(
-            pagerState = pagerState,
-            pageCount = pageCount,
-            monthForPage = monthForPage,
-            canMoveToNextMonth = canMoveToNextMonth,
-            onPreviousMonth = viewModel::previousMonth,
-            onNextMonth = viewModel::nextMonth,
-            modifier = Modifier.padding(top = 10.dp, start = 8.dp, end = 8.dp),
-        )
-
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("month_pager"),
-            beyondViewportPageCount = 1,
-        ) { page ->
-            val pageMonth = monthForPage(page)
-            val pageTransactions by viewModel.observeMonthTransactions(pageMonth)
-                .collectAsStateWithLifecycle(initialValue = emptyList())
-            val pageExpenseSlices by viewModel.observeMonthExpenseSlices(pageMonth)
-                .collectAsStateWithLifecycle(initialValue = emptyList())
-            val pageTotalExpense = pageTransactions
-                .filter { transaction -> transaction.transactionType == TransactionType.EXPENSE }
-                .sumOf { transaction -> transaction.amountCents }
-            val pageTotalIncome = pageTransactions
-                .filter { transaction -> transaction.transactionType == TransactionType.INCOME }
-                .sumOf { transaction -> transaction.amountCents }
-            ExpensePieChart(
-                slices = pageExpenseSlices,
-                incomeCents = pageTotalIncome,
-                expenseCents = pageTotalExpense,
-                modifier = Modifier.padding(12.dp),
-                // Clicking a pie chart section opens the month's transaction history with that
-                // category's accordion already expanded.
-                onCategoryClick = { categoryName ->
-                    viewModel.requestCategoryExpansion(categoryName)
-                    onOpenTransactionHistory()
-                },
+            MonthTicker(
+                pagerState = pagerState,
+                pageCount = pageCount,
+                monthForPage = monthForPage,
+                canMoveToNextMonth = canMoveToNextMonth,
+                onPreviousMonth = viewModel::previousMonth,
+                onNextMonth = viewModel::nextMonth,
+                modifier = Modifier.padding(top = 10.dp, start = 8.dp, end = 8.dp),
             )
-        }
 
-        Spacer(modifier = Modifier.weight(1f))
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .graphicsLayer { alpha = 1f - historyRevealOffset }
+                    .testTag("month_pager"),
+                beyondViewportPageCount = 1,
+            ) { page ->
+                val pageMonth = monthForPage(page)
+                val pageTransactions by viewModel.observeMonthTransactions(pageMonth)
+                    .collectAsStateWithLifecycle(initialValue = emptyList())
+                val pageExpenseSlices by viewModel.observeMonthExpenseSlices(pageMonth)
+                    .collectAsStateWithLifecycle(initialValue = emptyList())
+                val pageTotalExpense = pageTransactions
+                    .filter { transaction -> transaction.transactionType == TransactionType.EXPENSE }
+                    .sumOf { transaction -> transaction.amountCents }
+                val pageTotalIncome = pageTransactions
+                    .filter { transaction -> transaction.transactionType == TransactionType.INCOME }
+                    .sumOf { transaction -> transaction.amountCents }
+                ExpensePieChart(
+                    slices = pageExpenseSlices,
+                    incomeCents = pageTotalIncome,
+                    expenseCents = pageTotalExpense,
+                    modifier = Modifier.padding(12.dp),
+                    // Clicking a pie chart section opens the month's transaction history with that
+                    // category's accordion already expanded.
+                    onCategoryClick = { categoryName ->
+                        viewModel.requestCategoryExpansion(categoryName)
+                        onOpenTransactionHistory()
+                    },
+                )
+            }
 
-        // Balance box and action buttons with drag support
-        BalanceBoxSection(
-            balance = balance,
-            historyRevealOffset = historyRevealOffset,
-            onBalanceBoxDrag = { delta ->
-                historyRevealOffset = (historyRevealOffset + delta).coerceIn(0f, 1f)
-            },
-            onBalanceBoxClick = {
-                scope.launch {
-                    animateRevealOffset(historyRevealOffset, 1f, density) { offset ->
-                        historyRevealOffset = offset
-                    }
-                }
-            },
-            onBalanceBoxSwipeDown = {
-                scope.launch {
-                    animateRevealOffset(historyRevealOffset, 0f, density) { offset ->
-                        historyRevealOffset = offset
-                    }
-                }
-            },
-            onAddTransaction = onAddTransaction,
-        )
-        } // end Column (main content)
-
-        // Transaction history overlay
-        if (historyRevealOffset > 0f) {
-            TransactionHistoryOverlay(
+            // Balance box and transaction history sheet (collapsible)
+            BalanceAndHistorySheet(
                 viewModel = viewModel,
-                revealOffset = historyRevealOffset,
-                onClose = {
+                balance = balance,
+                historyRevealOffset = historyRevealOffset,
+                onHistoryOffsetChange = { delta ->
+                    historyRevealOffset = (historyRevealOffset + delta).coerceIn(0f, 1f)
+                },
+                onToggleHistoryFull = { isOpen ->
                     scope.launch {
-                        animateRevealOffset(historyRevealOffset, 0f, density) { offset ->
+                        animateRevealOffset(historyRevealOffset, if (isOpen) 1f else 0f, density) { offset ->
                             historyRevealOffset = offset
                         }
                     }
                 },
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxWidth(),
             )
-        }
+
+            // Action buttons (always visible, below the sheet)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 40.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RoundActionButton(
+                    symbol = "−",
+                    borderColor = Color(0xFFF07F86),
+                    symbolColor = Color(0xFFF07F86),
+                    tag = "add_expense_button",
+                    onClick = {
+                        onAddTransaction(TransactionType.EXPENSE)
+                    },
+                )
+                RoundActionButton(
+                    symbol = "+",
+                    borderColor = Color(0xFF64D09B),
+                    symbolColor = Color(0xFF64D09B),
+                    tag = "add_income_button",
+                    onClick = {
+                        onAddTransaction(TransactionType.INCOME)
+                    },
+                )
+            }
+        } // end Column (main content)
 
         // Scrim
         AnimatedVisibility(
@@ -325,185 +332,140 @@ fun HomeScreen(
 }
 
 @Composable
-private fun BalanceBoxSection(
+private fun BalanceAndHistorySheet(
+    viewModel: MainViewModel,
     balance: Long,
     historyRevealOffset: Float,
-    onBalanceBoxDrag: (Float) -> Unit,
-    onBalanceBoxClick: () -> Unit,
-    onBalanceBoxSwipeDown: () -> Unit,
-    onAddTransaction: (TransactionType) -> Unit,
-) {
-    val density = LocalDensity.current
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 20.dp, start = 12.dp, end = 12.dp)
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onVerticalDrag = { _, dragAmount ->
-                        // dragAmount is positive when dragging down, negative when dragging up
-                        val normalizedDelta = -dragAmount / 500f // normalize to 0-1 range
-                        onBalanceBoxDrag(normalizedDelta)
-                    },
-                    onDragEnd = {
-                        // Snap to either fully open or fully closed
-                        if (historyRevealOffset > 0.3f) {
-                            onBalanceBoxClick()
-                        } else {
-                            onBalanceBoxSwipeDown()
-                        }
-                    }
-                )
-            },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        IconButton(
-            onClick = onBalanceBoxClick,
-            modifier = Modifier
-                .size(60.dp)
-                .testTag("balance_history_left"),
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Menu,
-                contentDescription = "Open transaction history",
-                tint = Color(0xFF7CC8A4),
-                modifier = Modifier.size(40.dp),
-            )
-        }
-        Surface(
-            color = if (balance < 0) Color(0xFFF27982) else Color(0xFF70C889),
-            shadowElevation = 2.dp,
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 10.dp)
-                .height(45.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) {
-                    onBalanceBoxClick()
-                },
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = currencyAnnotatedString(
-                        text = "Balance ${if (balance < 0) "-" else ""}€${centsToDisplay(abs(balance))}",
-                        baseFontSize = 18.sp,
-                    ),
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 18.sp,
-                )
-            }
-        }
-        IconButton(
-            onClick = onBalanceBoxClick,
-            modifier = Modifier
-                .size(60.dp)
-                .testTag("balance_history_right"),
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Menu,
-                contentDescription = "Open transaction history",
-                tint = Color(0xFF7CC8A4),
-                modifier = Modifier.size(40.dp),
-            )
-        }
-    }
-    
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 40.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RoundActionButton(
-            symbol = "−",
-            borderColor = Color(0xFFF07F86),
-            symbolColor = Color(0xFFF07F86),
-            tag = "add_expense_button",
-            onClick = {
-                onAddTransaction(TransactionType.EXPENSE)
-            },
-        )
-        RoundActionButton(
-            symbol = "+",
-            borderColor = Color(0xFF64D09B),
-            symbolColor = Color(0xFF64D09B),
-            tag = "add_income_button",
-            onClick = {
-                onAddTransaction(TransactionType.INCOME)
-            },
-        )
-    }
-}
-
-@Composable
-private fun TransactionHistoryOverlay(
-    viewModel: MainViewModel,
-    revealOffset: Float,
-    onClose: () -> Unit,
+    onHistoryOffsetChange: (Float) -> Unit,
+    onToggleHistoryFull: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
     val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
     val categoriesMap = remember(allCategories) {
         allCategories.associateBy { it.id }
     }
 
-    val heightDp = 500.dp
-    val balanceBoxHeightDp = 150.dp  // Account for balance box and buttons
-    val heightPx = with(LocalDensity.current) { heightDp.toPx() }
-    val balanceBoxHeightPx = with(LocalDensity.current) { balanceBoxHeightDp.toPx() }
-    val offsetPx = revealOffset * (heightPx - balanceBoxHeightPx)
+    val balanceBoxHeightDp = 70.dp
+    val sheetHeightDp = 500.dp
 
     Box(
         modifier = modifier
-            .graphicsLayer {
-                translationY = -heightPx + offsetPx + balanceBoxHeightPx
-            }
+            .height(balanceBoxHeightDp + (sheetHeightDp * historyRevealOffset))
+            .clipToBounds()
     ) {
-        Surface(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(heightDp),
-            color = Color.White,
         ) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
+            // Balance box section (always visible)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFEAF8F2))
+                    .padding(top = 12.dp, start = 12.dp, end = 12.dp, bottom = 8.dp)
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onVerticalDrag = { _, dragAmount ->
+                                // If history is fully open (offset >= 1.0), only allow dragging down
+                                if (historyRevealOffset >= 1f && dragAmount < 0f) {
+                                    // Trying to drag up while fully open - don't move
+                                    return@detectVerticalDragGestures
+                                }
+                                
+                                val normalizedDelta = -dragAmount / 500f
+                                onHistoryOffsetChange(normalizedDelta)
+                            },
+                            onDragEnd = {
+                                if (historyRevealOffset > 0.3f) {
+                                    onToggleHistoryFull(true)
+                                } else {
+                                    onToggleHistoryFull(false)
+                                }
+                            }
+                        )
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                // Header with close button
-                Row(
+                IconButton(
+                    onClick = { onToggleHistoryFull(true) },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+                        .size(60.dp)
+                        .testTag("balance_history_left"),
                 ) {
-                    Text(
-                        text = "Transactions",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
+                    Icon(
+                        imageVector = Icons.Outlined.Menu,
+                        contentDescription = "Open transaction history",
+                        tint = Color(0xFF7CC8A4),
+                        modifier = Modifier.size(40.dp),
                     )
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Outlined.Close, contentDescription = "Close")
+                }
+                Surface(
+                    color = if (balance < 0) Color(0xFFF27982) else Color(0xFF70C889),
+                    shadowElevation = 2.dp,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 10.dp)
+                        .height(45.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) {
+                            onToggleHistoryFull(true)
+                        },
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = currencyAnnotatedString(
+                                text = "Balance ${if (balance < 0) "-" else ""}€${centsToDisplay(abs(balance))}",
+                                baseFontSize = 18.sp,
+                            ),
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Normal,
+                            fontSize = 18.sp,
+                        )
                     }
                 }
+                IconButton(
+                    onClick = { onToggleHistoryFull(true) },
+                    modifier = Modifier
+                        .size(60.dp)
+                        .testTag("balance_history_right"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Menu,
+                        contentDescription = "Open transaction history",
+                        tint = Color(0xFF7CC8A4),
+                        modifier = Modifier.size(40.dp),
+                    )
+                }
+            }
 
-                // Transaction list
-                TransactionGroupedList(
-                    transactions = transactions,
-                    categoriesMap = categoriesMap,
-                    isGroupedByCategory = true,
-                    expandCategory = null,
-                    onTransactionClick = { },
-                )
+            // Transaction history content
+            if (historyRevealOffset > 0f) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(sheetHeightDp),
+                    color = Color.White,
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        // Transaction list
+                        Box(modifier = Modifier.weight(1f)) {
+                            TransactionGroupedList(
+                                transactions = transactions,
+                                categoriesMap = categoriesMap,
+                                isGroupedByCategory = true,
+                                expandCategory = null,
+                                onTransactionClick = { },
+                            )
+                        }
+                    }
+                }
             }
         }
     }
