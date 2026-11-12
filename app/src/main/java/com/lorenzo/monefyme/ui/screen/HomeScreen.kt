@@ -49,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -349,6 +350,12 @@ private fun BalanceAndHistorySheet(
     val balanceBoxHeightDp = 70.dp
     val sheetHeightDp = 500.dp
 
+    // pointerInput(Unit) below runs once and captures its surroundings; reading the plain
+    // historyRevealOffset parameter there would see the stale value from the first composition,
+    // so dragging the sheet to the top always snapped closed on release. rememberUpdatedState
+    // gives the gesture lambdas the current reveal offset so a dragged-open sheet sticks open.
+    val currentRevealOffset by rememberUpdatedState(historyRevealOffset)
+
     Box(
         modifier = modifier
             .height(balanceBoxHeightDp + (sheetHeightDp * historyRevealOffset))
@@ -368,7 +375,7 @@ private fun BalanceAndHistorySheet(
                         detectVerticalDragGestures(
                             onVerticalDrag = { _, dragAmount ->
                                 // If history is fully open (offset >= 1.0), only allow dragging down
-                                if (historyRevealOffset >= 1f && dragAmount < 0f) {
+                                if (currentRevealOffset >= 1f && dragAmount < 0f) {
                                     // Trying to drag up while fully open - don't move
                                     return@detectVerticalDragGestures
                                 }
@@ -377,7 +384,16 @@ private fun BalanceAndHistorySheet(
                                 onHistoryOffsetChange(normalizedDelta)
                             },
                             onDragEnd = {
-                                if (historyRevealOffset > 0.3f) {
+                                if (currentRevealOffset > 0.3f) {
+                                    onToggleHistoryFull(true)
+                                } else {
+                                    onToggleHistoryFull(false)
+                                }
+                            },
+                            onDragCancel = {
+                                // A cancelled drag snaps the same way, so a sheet dragged to the
+                                // top never stays half-open.
+                                if (currentRevealOffset > 0.3f) {
                                     onToggleHistoryFull(true)
                                 } else {
                                     onToggleHistoryFull(false)
@@ -448,7 +464,8 @@ private fun BalanceAndHistorySheet(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(sheetHeightDp),
+                        .height(sheetHeightDp)
+                        .testTag("history_sheet"),
                     color = Color.White,
                 ) {
                     Column(

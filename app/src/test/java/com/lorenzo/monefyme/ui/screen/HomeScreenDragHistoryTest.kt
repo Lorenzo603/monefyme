@@ -1,5 +1,6 @@
 package com.lorenzo.monefyme.ui.screen
 
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -76,6 +77,63 @@ class HomeScreenDragHistoryTest {
         val offsetAfterDrag3 = 0.3f
         val shouldOpen3 = offsetAfterDrag3 > 0.3f
         assertFalse("Offset = 0.3 should snap closed", shouldOpen3)
+    }
+
+    /**
+     * Regression guard for the "history does not stick after dragging" bug:
+     * BalanceAndHistorySheet's pointerInput(Unit) block runs once and captures the
+     * historyRevealOffset *parameter* (a plain Float from the first composition, always 0f at
+     * start). onDragEnd then always saw 0f and snapped the sheet closed, so dragging the sheet
+     * to the top never stuck - only the balance box buttons (which call onToggleHistoryFull with
+     * the live HomeScreen state) kept it open.
+     * The drag gesture handlers must therefore read a rememberUpdatedState value, not the
+     * captured parameter.
+     */
+    @Test
+    fun dragGestureHandlersReadTheLiveRevealOffsetNotTheCapturedParameter() {
+        val source = readSource("app/src/main/java/com/lorenzo/monefyme/ui/screen/HomeScreen.kt")
+
+        assertTrue(
+            "BalanceAndHistorySheet must expose the reveal offset through rememberUpdatedState so " +
+                "the long-lived pointerInput(Unit) gesture lambdas see the current value:",
+            source.contains("by rememberUpdatedState(historyRevealOffset)"),
+        )
+
+        val dragBlock = source.substringAfter("detectVerticalDragGestures(")
+            .substringBefore("verticalAlignment = Alignment.CenterVertically")
+        assertTrue(
+            "The fully-open guard must use the live offset (currentRevealOffset), otherwise it " +
+                "compares the stale value captured at first composition:\n$dragBlock",
+            dragBlock.contains("currentRevealOffset >= 1f"),
+        )
+        assertTrue(
+            "onDragEnd must decide the snap from the live offset: dragging the sheet to the top " +
+                "must snap it open (stick) instead of snapping it closed:\n$dragBlock",
+            dragBlock.contains("if (currentRevealOffset > 0.3f)"),
+        )
+        assertFalse(
+            "The drag handlers must not read the captured historyRevealOffset parameter any " +
+                "more - that was the not-sticky bug:\n$dragBlock",
+            dragBlock.contains("historyRevealOffset"),
+        )
+    }
+
+    /**
+     * A cancelled drag must snap the sheet the same way a released drag does, so a sheet dragged
+     * to its fully expanded position cannot stay half open when the gesture is interrupted.
+     */
+    @Test
+    fun cancelledDragSnapsLikeAReleasedDrag() {
+        val source = readSource("app/src/main/java/com/lorenzo/monefyme/ui/screen/HomeScreen.kt")
+        val dragBlock = source.substringAfter("detectVerticalDragGestures(")
+            .substringBefore("verticalAlignment = Alignment.CenterVertically")
+        assertTrue(
+            "detectVerticalDragGestures must handle onDragCancel with the same snap-to-open/closed " +
+                "logic as onDragEnd:\n$dragBlock",
+            dragBlock.contains("onDragCancel =") &&
+                dragBlock.substringAfter("onDragCancel =").contains("onToggleHistoryFull(true)") &&
+                dragBlock.substringAfter("onDragCancel =").contains("onToggleHistoryFull(false)"),
+        )
     }
 
     /**
@@ -190,5 +248,25 @@ class HomeScreenDragHistoryTest {
         offset = 1f  // Start from fully open
         offset = 0f  // Snap to closed
         assertEquals("Swiping down should snap to 0", 0f, offset)
+    }
+
+    private fun readSource(relativePath: String): String {
+        val file = File(findProjectRoot(), relativePath)
+        assertTrue("Cannot find $relativePath under ${findProjectRoot().absolutePath}", file.exists())
+        // Normalise line endings so the assertions below are independent of the checkout setting.
+        return file.readText().replace("\r\n", "\n")
+    }
+
+    private fun findProjectRoot(): File {
+        val start = File(System.getProperty("user.dir") ?: ".").absoluteFile
+        var dir: File? = start
+        while (dir != null) {
+            val current: File = dir
+            if (File(current, "settings.gradle.kts").exists() && File(current, "app").isDirectory) {
+                return current
+            }
+            dir = current.parentFile
+        }
+        throw IllegalStateException("Could not locate the project root starting from $start")
     }
 }
