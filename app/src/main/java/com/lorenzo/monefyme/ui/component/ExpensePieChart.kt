@@ -269,7 +269,8 @@ fun ExpensePieChart(
                     // A tap on a ring section is a click on that category. A tap that is not on a
                     // section (the chart's centre, the background), a press the month pager drag
                     // swallowed, or a press that travelled over the chart (the month pager swipe)
-                    // reports nothing.
+                    // reports nothing. Holding a press highlights the section's icon and shows the
+                    // category info in the centre, just like holding on an icon slot.
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                         val categoryKey = categoryKeyAtPoint(
@@ -282,7 +283,9 @@ fun ExpensePieChart(
                             outerRadiusPx = ringCenterRadiusPx + strokeWidthPx / 2f,
                         )
                         if (categoryKey == null) return@awaitEachGesture
+                        pressedCategoryKey = pressedCategoryAfterPress(pressedCategoryKey, categoryKey)
                         val up = waitForUpOrCancellation(PointerEventPass.Initial)
+                        pressedCategoryKey = pressedCategoryAfterRelease(pressedCategoryKey)
                         if (up != null &&
                             isPressWithoutDrag(
                                 downPosition = down.position,

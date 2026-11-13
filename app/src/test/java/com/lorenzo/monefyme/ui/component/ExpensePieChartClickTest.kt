@@ -274,6 +274,27 @@ class ExpensePieChartClickTest {
     }
 
     @Test
+    fun holdingAPressOnASectionHighlightsLikeHoldingOnAnIcon() {
+        val body = expensePieChartBody()
+        val ringGesture = body.substringAfter(".testTag(\"pie_chart_arc_area\")").substringBefore("val arcTopLeft =")
+        assertTrue(
+            "Holding a press on a section must set the pressed category state for highlighting:",
+            ringGesture.contains("pressedCategoryKey = pressedCategoryAfterPress("),
+        )
+        assertTrue(
+            "Releasing the press must clear the pressed category state:",
+            ringGesture.contains("pressedCategoryKey = pressedCategoryAfterRelease("),
+        )
+        val setIndex = ringGesture.indexOf("pressedCategoryKey = pressedCategoryAfterPress(")
+        val waitIndex = ringGesture.indexOf("waitForUpOrCancellation")
+        val clearIndex = ringGesture.indexOf("pressedCategoryKey = pressedCategoryAfterRelease(")
+        assertTrue(
+            "The pressed category must be set before waiting for release, then cleared after:",
+            setIndex >= 0 && waitIndex >= 0 && clearIndex >= 0 && setIndex < waitIndex && waitIndex < clearIndex,
+        )
+    }
+
+    @Test
     fun chartAreasAreTaggedForUiTests() {
         val body = expensePieChartBody()
         assertTrue("The tappable ring area needs a stable test tag.", body.contains("\"pie_chart_arc_area\""))

@@ -148,6 +148,25 @@ class ExpensePieChartHighlightTest {
     }
 
     @Test
+    fun pressingSectionOnPieChartSetsAndReleasingClearsThePressedCategory() {
+        val body = expensePieChartBody()
+        // The ring section gesture must use the same state machine as icon slots.
+        val ringGesture = body.substringAfter(".testTag(\"pie_chart_arc_area\")").substringBefore("val arcTopLeft =")
+        val downIndex = ringGesture.indexOf("awaitFirstDown")
+        val pressIndex = ringGesture.indexOf("pressedCategoryAfterPress")
+        val upIndex = ringGesture.indexOf("waitForUpOrCancellation")
+        val releaseIndex = ringGesture.indexOf("pressedCategoryAfterRelease")
+        assertTrue(
+            "The ring section gesture must listen for a press and set pressed category:\n$ringGesture",
+            downIndex >= 0 && pressIndex >= 0 && upIndex >= 0 && releaseIndex >= 0,
+        )
+        assertTrue(
+            "Ring section press down must highlight the icon, release must clear it:\n$ringGesture",
+            downIndex < pressIndex && pressIndex < upIndex && upIndex < releaseIndex,
+        )
+    }
+
+    @Test
     fun highlightedIconSlotDrawsAColorCircleAroundItsIcon() {
         val body = expensePieChartBody()
         assertTrue(
