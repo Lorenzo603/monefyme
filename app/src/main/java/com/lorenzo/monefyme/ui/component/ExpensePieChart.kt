@@ -190,7 +190,9 @@ fun ExpensePieChart(
         val highlightRingGapPx = with(density) { 3.dp.toPx() }
         val linePaddingPx = with(density) { 2.dp.toPx() }
         val groupHalfWidthPx = iconSizePx / 2f + highlightRingGapPx + linePaddingPx
-        val groupHalfHeightPx = (iconSizePx + 2f * highlightRingGapPx + iconLabelSlotHeightPx) / 2f + linePaddingPx
+        val groupHalfHeightSymmetricPx = (iconSizePx + 2f * highlightRingGapPx + iconLabelSlotHeightPx) / 2f
+        val groupHalfHeightTopPx = groupHalfHeightSymmetricPx + linePaddingPx
+        val groupHalfHeightBottomPx = groupHalfHeightSymmetricPx + linePaddingPx + with(density) { 5.dp.toPx() }
 
         val activeConnectors = slicesWithMeta.map { slice ->
             val radians = Math.toRadians(slice.midAngle.toDouble())
@@ -360,6 +362,8 @@ fun ExpensePieChart(
                     // Find where the incoming line intersects the group bounding rectangle so the
                     // line always stops at the group boundary regardless of direction.
                     val tX = if (abs(ndx) > 0f) groupHalfWidthPx / abs(ndx) else Float.MAX_VALUE
+                    // Use the larger bottom half-height when the line arrives from below.
+                    val groupHalfHeightPx = if (ndy < 0f) groupHalfHeightBottomPx else groupHalfHeightTopPx
                     val tY = if (abs(ndy) > 0f) groupHalfHeightPx / abs(ndy) else Float.MAX_VALUE
                     val tIntersect = minOf(tX, tY)
                     val endX = target.x - ndx * tIntersect
