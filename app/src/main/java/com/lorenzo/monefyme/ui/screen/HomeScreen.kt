@@ -224,7 +224,6 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .fillMaxSize()
-                        .graphicsLayer { alpha = 1f - historyRevealOffset }
                         .testTag("month_pager"),
                     beyondViewportPageCount = 1,
                 ) { page ->
@@ -240,7 +239,7 @@ fun HomeScreen(
                         .filter { transaction -> transaction.transactionType == TransactionType.INCOME }
                         .sumOf { transaction -> transaction.amountCents }
                     val pageBalance = pageTotalIncome - pageTotalExpense
-                    
+
                     Column(
                         modifier = Modifier.fillMaxSize(),
                     ) {
@@ -250,16 +249,14 @@ fun HomeScreen(
                             expenseCents = pageTotalExpense,
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(12.dp),
-                            // Clicking a pie chart section expands the inline transaction history with that
-                            // category's accordion already expanded.
+                                .padding(12.dp)
+                                .graphicsLayer { alpha = 1f - historyRevealOffset },
                             onCategoryClick = { categoryName ->
                                 viewModel.requestCategoryExpansion(categoryName)
                                 onToggleHistoryFull(true)
                             },
                         )
-                        
-                        // Balance box for this month's transactions - now part of scrollable month
+
                         BalanceAndHistorySheet(
                             viewModel = viewModel,
                             balance = pageBalance,
@@ -484,7 +481,12 @@ private fun BalanceAndHistorySheet(
                     Column(
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        // Transaction list
+                        Text(
+                            text = "Transactions",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        )
                         Box(modifier = Modifier.weight(1f)) {
                             TransactionGroupedList(
                                 transactions = transactions,

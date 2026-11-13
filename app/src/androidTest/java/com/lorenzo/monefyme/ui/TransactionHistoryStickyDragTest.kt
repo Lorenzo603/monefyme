@@ -34,9 +34,9 @@ class TransactionHistoryStickyDragTest {
 
     /** Drags the balance box [distanceDp] in [dy] direction (negative = up) and releases. */
     private fun dragBalanceBox(distanceDp: Float, dy: Float) {
-        // Get the first (displayed) node, as there may be multiple due to HorizontalPager's beyondViewportPageCount
+        // Index 0 is the off-screen adjacent page; index 1 is the current (displayed) page
         composeTestRule.onAllNodesWithTag("balance_history_left", useUnmergedTree = false)
-            .get(0)
+            .get(1)
             .performTouchInput {
                 swipe(
                     start = center,
@@ -60,7 +60,9 @@ class TransactionHistoryStickyDragTest {
         dragUp()
 
         // The sheet stuck at its fully expanded position: it keeps (almost) the full 500.dp height.
-        composeTestRule.onNodeWithTag("history_sheet")
+        // Index 1 is the current page; index 0 is the off-screen adjacent page.
+        composeTestRule.onAllNodesWithTag("history_sheet")
+            .get(1)
             .assertIsDisplayed()
             .assertHeightIsAtLeast(450.dp)
     }
@@ -71,7 +73,9 @@ class TransactionHistoryStickyDragTest {
 
         // Drag up: the sheet sticks fully open.
         dragUp()
-        composeTestRule.onNodeWithTag("history_sheet")
+        // Index 1 is the current page; index 0 is the off-screen adjacent page.
+        composeTestRule.onAllNodesWithTag("history_sheet")
+            .get(1)
             .assertIsDisplayed()
             .assertHeightIsAtLeast(450.dp)
 

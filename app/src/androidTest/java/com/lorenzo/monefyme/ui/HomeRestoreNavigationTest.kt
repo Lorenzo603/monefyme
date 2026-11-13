@@ -7,6 +7,7 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -43,31 +44,37 @@ class HomeRestoreNavigationTest {
     @Test
     fun balanceBoxLeftButtonOpensTransactionHistory() {
         composeTestRule.waitForIdle()
-        // Get the first (displayed) node, as there may be multiple due to HorizontalPager's beyondViewportPageCount
+        // Index 0 is the off-screen adjacent page; index 1 is the current (displayed) page
         composeTestRule.onAllNodesWithTag("balance_history_left", useUnmergedTree = false)
-            .get(0)
+            .get(1)
             .performClick()
 
-        composeTestRule.onNodeWithText("Transactions").assertIsDisplayed()
+        // Index 1 is the current page; index 0 is the off-screen adjacent page.
+        composeTestRule.onAllNodesWithText("Transactions")
+            .get(1)
+            .assertIsDisplayed()
     }
 
     @Test
     fun balanceBoxRightButtonOpensTransactionHistory() {
         composeTestRule.waitForIdle()
-        // Get the first (displayed) node, as there may be multiple due to HorizontalPager's beyondViewportPageCount
+        // Index 0 is the off-screen adjacent page; index 1 is the current (displayed) page
         composeTestRule.onAllNodesWithTag("balance_history_right", useUnmergedTree = false)
-            .get(0)
+            .get(1)
             .performClick()
 
-        composeTestRule.onNodeWithText("Transactions").assertIsDisplayed()
+        // Index 1 is the current page; index 0 is the off-screen adjacent page.
+        composeTestRule.onAllNodesWithText("Transactions")
+            .get(1)
+            .assertIsDisplayed()
     }
 
     @Test
     fun balanceBoxSideButtonsUseHamburgerIconsAndNotRestoreIcons() {
-        // Count all nodes with the content description (including non-displayed ones from adjacent pager pages)
-        // This should be at least 2 from the current page
+        // With beyondViewportPageCount = 1 the pager pre-renders one adjacent page, so we
+        // get 2 buttons from the current page and 2 from the adjacent (off-screen) page = 4.
         composeTestRule.onAllNodesWithContentDescription("Open transaction history")
-            .assertCountEquals(2)
+            .assertCountEquals(4)
         // The Restore entry point now lives only in the sidebar, so the closed Home screen must
         // not expose a Restore button any more.
         composeTestRule.onNodeWithContentDescription("Open restore").assertDoesNotExist()

@@ -37,9 +37,9 @@ class ActionButtonsLayoutTest {
             .assertIsDisplayed()
         
         // Drag the balance box upwards to reveal the full transaction history
-        // Get the first (displayed) node, as there may be multiple due to HorizontalPager's beyondViewportPageCount
+        // Get the second node (index 1), as index 0 is the adjacent pager page which is off-screen
         composeTestRule.onAllNodesWithTag("balance_history_left", useUnmergedTree = false)
-            .get(0)
+            .get(1)
             .performTouchInput {
                 swipe(
                     start = center,
@@ -53,7 +53,9 @@ class ActionButtonsLayoutTest {
         composeTestRule.waitForIdle()
 
         // Verify the history sheet is now fully revealed
-        composeTestRule.onNodeWithTag("history_sheet", useUnmergedTree = true)
+        // Index 1 is the current page; index 0 is the off-screen adjacent page.
+        composeTestRule.onAllNodesWithTag("history_sheet", useUnmergedTree = true)
+            .get(1)
             .assertIsDisplayed()
 
         // Most importantly: verify the buttons are still displayed after history is opened
