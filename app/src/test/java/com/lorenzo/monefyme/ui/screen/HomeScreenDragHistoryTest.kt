@@ -223,9 +223,95 @@ class HomeScreenDragHistoryTest {
     }
 
     /**
+     * Test that clicking the balance box or buttons toggles the history state.
+     * - If history is closed (offset <= 0.5), clicking should open it
+     * - If history is open (offset > 0.5), clicking should close it
+     */
+    @Test
+    fun clickingBalanceBoxTogglesHistoryState() {
+        // Case 1: History is closed, clicking should open
+        val closedOffset = 0f
+        val shouldOpenFromClosed = closedOffset <= 0.5f
+        assertTrue("Clicking when closed should open history", shouldOpenFromClosed)
+
+        // Case 2: History is partially open but below threshold
+        val partialOffsetBelow = 0.3f
+        val shouldOpenFromPartialBelow = partialOffsetBelow <= 0.5f
+        assertTrue("Clicking when partially open (< 0.5) should open history", shouldOpenFromPartialBelow)
+
+        // Case 3: History is partially open but above threshold
+        val partialOffsetAbove = 0.7f
+        val shouldOpenFromPartialAbove = partialOffsetAbove <= 0.5f
+        assertFalse("Clicking when partially open (> 0.5) should close history", shouldOpenFromPartialAbove)
+
+        // Case 4: History is fully open
+        val fullyOpenOffset = 1f
+        val shouldOpenFromFull = fullyOpenOffset <= 0.5f
+        assertFalse("Clicking when fully open should close history", shouldOpenFromFull)
+
+        // Case 5: Exactly at threshold
+        val thresholdOffset = 0.5f
+        val shouldOpenAtThreshold = thresholdOffset <= 0.5f
+        assertTrue("At 0.5 threshold, clicking should open", shouldOpenAtThreshold)
+    }
+
+    /**
+     * Test the snap-to behavior when dragging ends with the 0.3f threshold.
+     * - If offset > 0.3f after dragging, it should snap to fully open (1.0)
+     * - If offset <= 0.3f, it should snap to fully closed (0.0)
+     * 
+     * This is different from the click toggle threshold of 0.5f to give better UX:
+     * - Dragging 30% is enough to open the sheet
+     * - But clicking requires deciding if it's more open than closed
+     */
+    @Test
+    fun dragAndClickThresholdsAreDifferent() {
+        val dragThreshold = 0.3f
+        val clickToggleThreshold = 0.5f
+        
+        // At 40% (between thresholds), drag should open but before clicking
+        val offset40 = 0.4f
+        val dragShouldOpen40 = offset40 > dragThreshold
+        val clickShouldOpen40 = offset40 <= clickToggleThreshold
+        assertTrue("At 0.4 offset, drag should snap open", dragShouldOpen40)
+        assertTrue("At 0.4 offset, click should open", clickShouldOpen40)
+
+        // At 60% (between thresholds), drag should open and click should close
+        val offset60 = 0.6f
+        val dragShouldOpen60 = offset60 > dragThreshold
+        val clickShouldOpen60 = offset60 <= clickToggleThreshold
+        assertTrue("At 0.6 offset, drag should snap open", dragShouldOpen60)
+        assertFalse("At 0.6 offset, click should close", clickShouldOpen60)
+    }
+
+    /**
+     * Test that animation and toggle logic complement each other:
+     * 1. User drags and it snaps based on 30% threshold
+     * 2. User then clicks - the click should toggle from whatever state was reached
+     */
+    @Test
+    fun dragThenClickBehavior() {
+        // Scenario: User drags halfway (50%) and releases
+        var offset = 0.5f
+        val dragSnapsToOpen = offset > 0.3f
+        if (dragSnapsToOpen) {
+            offset = 1f
+        } else {
+            offset = 0f
+        }
+        assertEquals("50% drag should snap to open", 1f, offset)
+        
+        // Now user clicks on the opened history
+        val clickShouldClose = offset > 0.5f
+        assertTrue("Click on open history should close", clickShouldClose)
+        offset = 0f  // Animate to closed
+        assertEquals("Click closes the history", 0f, offset)
+    }
+
+    /**
      * Test that the balance box section properly handles all interaction modes:
      * 1. Dragging up reveals history gradually
-     * 2. Clicking opens history fully (snapped to 1.0)
+     * 2. Clicking toggles history state based on 0.5f threshold
      * 3. Dragging down hides history (snapped to 0.0)
      */
     @Test
@@ -236,13 +322,16 @@ class HomeScreenDragHistoryTest {
         offset = (offset + dragDelta).coerceIn(0f, 1f)
         assertEquals("Dragging up should increase offset gradually", 0.15f, offset)
 
-        // Mode 2: Clicking - should snap to fully open
-        val clickResult = if (offset > 0.3f) 1f else 0f
-        assertEquals("Clicking when offset is low should snap to 0", 0f, clickResult)
+        // Mode 2: Clicking - should toggle based on current state
+        // When offset is low, clicking should open
+        val shouldOpenWhenLow = offset <= 0.5f
+        assertTrue("Clicking when offset is low should open", shouldOpenWhenLow)
+        offset = 1f  // Simulate opening animation
 
-        offset = 0.5f  // Simulate more dragging
-        val clickResult2 = if (offset > 0.3f) 1f else 0f
-        assertEquals("Clicking when offset > 0.3 should snap to 1", 1f, clickResult2)
+        // When offset is high, clicking should close
+        val shouldCloseWhenHigh = offset <= 0.5f
+        assertFalse("Clicking when offset is high should close", shouldCloseWhenHigh)
+        offset = 0f  // Simulate closing animation
 
         // Mode 3: Swiping down - should snap to fully closed
         offset = 1f  // Start from fully open

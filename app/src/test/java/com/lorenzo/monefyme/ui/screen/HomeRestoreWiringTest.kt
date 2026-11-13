@@ -63,9 +63,9 @@ class HomeRestoreWiringTest {
         for (tag in listOf("balance_history_left", "balance_history_right")) {
             val buttonBlock = buttonBlockWithTag(homeScreenSource, tag)
             assertTrue(
-                "The button next to the balance box ($tag) must trigger revealing the transaction " +
-                    "history overlay by calling onToggleHistoryFull:\n$buttonBlock",
-                buttonBlock.contains("onClick = { onToggleHistoryFull(true) }"),
+                "The button next to the balance box ($tag) must trigger toggling the transaction " +
+                    "history overlay by calling onToggleHistoryFull with toggle logic:\n$buttonBlock",
+                buttonBlock.contains("onToggleHistoryFull(currentRevealOffset <= 0.5f)"),
             )
             assertFalse(
                 "The button next to the balance box ($tag) must not open the Restore screen:\n" +
@@ -123,9 +123,9 @@ class HomeRestoreWiringTest {
                 buttonBlock.contains("Icons.Outlined.Restore"),
             )
             assertTrue(
-                "The button next to the balance box ($tag) must describe itself as opening the " +
+                "The button next to the balance box ($tag) must describe itself as toggling the " +
                     "transaction history:\n$buttonBlock",
-                buttonBlock.contains("contentDescription = \"Open transaction history\""),
+                buttonBlock.contains("contentDescription = \"Toggle transaction history\""),
             )
         }
     }

@@ -405,14 +405,14 @@ private fun BalanceAndHistorySheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 IconButton(
-                    onClick = { onToggleHistoryFull(true) },
+                    onClick = { onToggleHistoryFull(currentRevealOffset <= 0.5f) },
                     modifier = Modifier
                         .size(60.dp)
                         .testTag("balance_history_left"),
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Menu,
-                        contentDescription = "Open transaction history",
+                        contentDescription = "Toggle transaction history",
                         tint = Color(0xFF7CC8A4),
                         modifier = Modifier.size(40.dp),
                     )
@@ -428,7 +428,7 @@ private fun BalanceAndHistorySheet(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                         ) {
-                            onToggleHistoryFull(true)
+                            onToggleHistoryFull(currentRevealOffset <= 0.5f)
                         },
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -445,14 +445,14 @@ private fun BalanceAndHistorySheet(
                     }
                 }
                 IconButton(
-                    onClick = { onToggleHistoryFull(true) },
+                    onClick = { onToggleHistoryFull(currentRevealOffset <= 0.5f) },
                     modifier = Modifier
                         .size(60.dp)
                         .testTag("balance_history_right"),
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Menu,
-                        contentDescription = "Open transaction history",
+                        contentDescription = "Toggle transaction history",
                         tint = Color(0xFF7CC8A4),
                         modifier = Modifier.size(40.dp),
                     )
