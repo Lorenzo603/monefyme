@@ -185,7 +185,12 @@ fun ExpensePieChart(
             (450.dp / 2f - (iconSize / 2f) - percentageLabelGap - percentageLabelHeight - 4.dp).toPx()
         }
         val lineWidthPx = with(density) { 1.2.dp.toPx() }
-        val iconBufferPx = (iconSizePx / 2f) + with(density) { 3.dp.toPx() }
+        // Group bounding box: icon slot + percentage label below it.
+        val iconLabelSlotHeightPx = with(density) { (percentageLabelGap + percentageLabelHeight).toPx() }
+        val highlightRingGapPx = with(density) { 3.dp.toPx() }
+        val linePaddingPx = with(density) { 2.dp.toPx() }
+        val groupHalfWidthPx = iconSizePx / 2f + highlightRingGapPx + linePaddingPx
+        val groupHalfHeightPx = (iconSizePx + 2f * highlightRingGapPx + iconLabelSlotHeightPx) / 2f + linePaddingPx
 
         val activeConnectors = slicesWithMeta.map { slice ->
             val radians = Math.toRadians(slice.midAngle.toDouble())
@@ -312,7 +317,9 @@ fun ExpensePieChart(
                 .associate { placement ->
                     placement.connectorCategoryKey!! to androidx.compose.ui.geometry.Offset(
                         x = center.x + placement.xFactor * xLimitPx,
-                        y = center.y + placement.yFactor * yLimitPx,
+                        // Target the group centre (icon + percentage label), which sits
+                        // iconLabelSlotHeightPx/2 below the icon centre.
+                        y = center.y + placement.yFactor * yLimitPx + iconLabelSlotHeightPx / 2f,
                     )
                 }
 
@@ -348,8 +355,15 @@ fun ExpensePieChart(
                     val dx = target.x - startX
                     val dy = target.y - startY
                     val length = sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
-                    val endX = target.x - (dx / length) * iconBufferPx
-                    val endY = target.y - (dy / length) * iconBufferPx
+                    val ndx = dx / length
+                    val ndy = dy / length
+                    // Find where the incoming line intersects the group bounding rectangle so the
+                    // line always stops at the group boundary regardless of direction.
+                    val tX = if (abs(ndx) > 0f) groupHalfWidthPx / abs(ndx) else Float.MAX_VALUE
+                    val tY = if (abs(ndy) > 0f) groupHalfHeightPx / abs(ndy) else Float.MAX_VALUE
+                    val tIntersect = minOf(tX, tY)
+                    val endX = target.x - ndx * tIntersect
+                    val endY = target.y - ndy * tIntersect
                     drawLine(
                         color = slice.color.copy(alpha = 0.9f),
                         start = androidx.compose.ui.geometry.Offset(startX, startY),
