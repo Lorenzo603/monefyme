@@ -17,6 +17,8 @@ Usage (from the repository root):
     python .harness-loop/runner.py
     python .harness-loop/runner.py --only tech-logos --model sonnet:high
     python .harness-loop/runner.py --only tech-logos --no-color   # plain live output
+
+    python .harness-loop/runner.py --model claude-haiku-4.5 --thinking high
 """
 
 from __future__ import annotations
