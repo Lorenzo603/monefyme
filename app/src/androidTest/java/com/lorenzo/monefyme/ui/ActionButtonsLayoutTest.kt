@@ -3,6 +3,7 @@ package com.lorenzo.monefyme.ui
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
@@ -36,7 +37,9 @@ class ActionButtonsLayoutTest {
             .assertIsDisplayed()
         
         // Drag the balance box upwards to reveal the full transaction history
-        composeTestRule.onNodeWithTag("balance_history_left", useUnmergedTree = true)
+        // Get the first (displayed) node, as there may be multiple due to HorizontalPager's beyondViewportPageCount
+        composeTestRule.onAllNodesWithTag("balance_history_left", useUnmergedTree = false)
+            .get(0)
             .performTouchInput {
                 swipe(
                     start = center,

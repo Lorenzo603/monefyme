@@ -425,7 +425,7 @@ private fun BalanceAndHistorySheet(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Menu,
-                        contentDescription = "Toggle transaction history",
+                        contentDescription = "Open transaction history",
                         tint = Color(0xFF7CC8A4),
                         modifier = Modifier.size(40.dp),
                     )
@@ -465,7 +465,7 @@ private fun BalanceAndHistorySheet(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Menu,
-                        contentDescription = "Toggle transaction history",
+                        contentDescription = "Open transaction history",
                         tint = Color(0xFF7CC8A4),
                         modifier = Modifier.size(40.dp),
                     )

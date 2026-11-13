@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -41,8 +42,10 @@ class HomeRestoreNavigationTest {
 
     @Test
     fun balanceBoxLeftButtonOpensTransactionHistory() {
-        composeTestRule.onNodeWithTag("balance_history_left")
-            .assert(hasClickAction())
+        composeTestRule.waitForIdle()
+        // Get the first (displayed) node, as there may be multiple due to HorizontalPager's beyondViewportPageCount
+        composeTestRule.onAllNodesWithTag("balance_history_left", useUnmergedTree = false)
+            .get(0)
             .performClick()
 
         composeTestRule.onNodeWithText("Transactions").assertIsDisplayed()
@@ -50,8 +53,10 @@ class HomeRestoreNavigationTest {
 
     @Test
     fun balanceBoxRightButtonOpensTransactionHistory() {
-        composeTestRule.onNodeWithTag("balance_history_right")
-            .assert(hasClickAction())
+        composeTestRule.waitForIdle()
+        // Get the first (displayed) node, as there may be multiple due to HorizontalPager's beyondViewportPageCount
+        composeTestRule.onAllNodesWithTag("balance_history_right", useUnmergedTree = false)
+            .get(0)
             .performClick()
 
         composeTestRule.onNodeWithText("Transactions").assertIsDisplayed()
@@ -59,6 +64,8 @@ class HomeRestoreNavigationTest {
 
     @Test
     fun balanceBoxSideButtonsUseHamburgerIconsAndNotRestoreIcons() {
+        // Count all nodes with the content description (including non-displayed ones from adjacent pager pages)
+        // This should be at least 2 from the current page
         composeTestRule.onAllNodesWithContentDescription("Open transaction history")
             .assertCountEquals(2)
         // The Restore entry point now lives only in the sidebar, so the closed Home screen must

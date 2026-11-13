@@ -123,9 +123,9 @@ class HomeRestoreWiringTest {
                 buttonBlock.contains("Icons.Outlined.Restore"),
             )
             assertTrue(
-                "The button next to the balance box ($tag) must describe itself as toggling the " +
+                "The button next to the balance box ($tag) must describe itself as opening the " +
                     "transaction history:\n$buttonBlock",
-                buttonBlock.contains("contentDescription = \"Toggle transaction history\""),
+                buttonBlock.contains("contentDescription = \"Open transaction history\""),
             )
         }
     }
