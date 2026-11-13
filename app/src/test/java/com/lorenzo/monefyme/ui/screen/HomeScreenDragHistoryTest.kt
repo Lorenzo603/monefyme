@@ -358,4 +358,50 @@ class HomeScreenDragHistoryTest {
         }
         throw IllegalStateException("Could not locate the project root starting from $start")
     }
+
+    /**
+     * Test that the BalanceAndHistorySheet Column properly fills the height of its Box container.
+     * The Box has a dynamically calculated height based on historyRevealOffset, but if the Column
+     * doesn't have .fillMaxHeight(), the Column won't expand to fill it, causing the transaction
+     * history Surface to be invisible (clipped or positioned below the visible area).
+     * 
+     * This is a regression test for the issue where the transaction history section is not visible
+     * when dragging the balance box up.
+     */
+    @Test
+    fun balanceAndHistorySheetColumnFillsBoxHeight() {
+        val source = readSource("app/src/main/java/com/lorenzo/monefyme/ui/screen/HomeScreen.kt")
+        
+        // Find the BalanceAndHistorySheet Column definition
+        val balanceAndHistorySheetStart = source.indexOf("private fun BalanceAndHistorySheet(")
+        assertTrue("BalanceAndHistorySheet function not found", balanceAndHistorySheetStart >= 0)
+        
+        // Find the Column inside the Box (after the Box modifier definitions)
+        val boxStart = source.indexOf("Box(", balanceAndHistorySheetStart)
+        val boxModifierEnd = source.indexOf(") {", boxStart)
+        val columnStart = source.indexOf("Column(", boxStart)
+        
+        assertTrue(
+            "Column inside BalanceAndHistorySheet Box should come after Box definition",
+            columnStart > boxModifierEnd
+        )
+        
+        // Extract the Column modifier section
+        val columnModifierStart = source.indexOf("modifier = Modifier", columnStart)
+        val columnModifierEnd = source.indexOf(") {", columnModifierStart)
+        val columnModifier = source.substring(columnModifierStart, columnModifierEnd)
+        
+        assertTrue(
+            "Column inside BalanceAndHistorySheet must have .fillMaxHeight() to expand to fill the Box's " +
+            "dynamically calculated height. Without it, when the Box expands due to historyRevealOffset increasing, " +
+            "the Column stays the same height and the transaction history Surface gets clipped/hidden.\n" +
+            "Found Column modifier:\n$columnModifier",
+            columnModifier.contains(".fillMaxHeight()")
+        )
+        
+        assertTrue(
+            "Column inside BalanceAndHistorySheet must also have .fillMaxWidth() for proper layout",
+            columnModifier.contains(".fillMaxWidth()")
+        )
+    }
 }
