@@ -74,23 +74,23 @@ class HomeRestoreWiringTest {
             )
         }
         
-        // Pie chart click still uses onOpenTransactionHistory for navigation
+        // Pie chart click expands the inline transaction history sheet
         assertTrue(
-            "The pie chart section click must still open the transaction history for category " +
+            "The pie chart section click must expand the inline transaction history sheet for category " +
                 "expansion support.",
             homeScreenSource.contains("onCategoryClick = { categoryName ->") &&
                 homeScreenSource.contains("viewModel.requestCategoryExpansion(categoryName)") &&
-                homeScreenSource.contains("onOpenTransactionHistory()"),
+                homeScreenSource.contains("onToggleHistoryFull(true)"),
         )
     }
 
     /**
-     * Clicking a section of the pie chart opens the month's transaction history with that category's
-     * accordion already expanded: HomeScreen must hand the chart a click handler that records the
-     * clicked category in the ViewModel (TransactionHistoryScreen expands it) and then navigates.
+     * Clicking a section of the pie chart expands the inline transaction history sheet with that
+     * category's accordion already expanded: HomeScreen must hand the chart a click handler that
+     * records the clicked category in the ViewModel and expands the inline sheet.
      */
     @Test
-    fun pieChartSectionClickOpensTransactionHistoryWithThatCategoryExpanded() {
+    fun pieChartSectionClickExpandsInlineTransactionHistoryWithThatCategoryExpanded() {
         val pieChartCall = homeScreenSource.substringAfter("ExpensePieChart(")
             .substringBefore("\n            )")
         assertTrue(
@@ -103,8 +103,8 @@ class HomeRestoreWiringTest {
             pieChartCall.contains("requestCategoryExpansion(categoryName)"),
         )
         assertTrue(
-            "The pie chart click must open the month's transaction history:\n$pieChartCall",
-            pieChartCall.contains("onOpenTransactionHistory()"),
+            "The pie chart click must expand the inline transaction history sheet:\n$pieChartCall",
+            pieChartCall.contains("onToggleHistoryFull(true)"),
         )
     }
 

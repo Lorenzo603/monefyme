@@ -52,7 +52,6 @@ fun BudgetApp(viewModel: MainViewModel) {
             composable(Routes.Home) {
                 HomeScreen(
                     viewModel = viewModel,
-                    onOpenTransactionHistory = { navController.navigate(Routes.TransactionHistory) },
                     onOpenRestore = { navController.navigate(Routes.Restore) },
                     onAddTransaction = { transactionType ->
                         if (transactionType == TransactionType.EXPENSE) {
@@ -61,7 +60,6 @@ fun BudgetApp(viewModel: MainViewModel) {
                             navController.navigate(Routes.AddIncome)
                         }
                     },
-                    onOpenTransactionHistorySwipe = { navController.navigate(Routes.TransactionHistory) },
                 )
             }
             composable(Routes.TransactionHistory) {

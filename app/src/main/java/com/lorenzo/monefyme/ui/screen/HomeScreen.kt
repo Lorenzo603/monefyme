@@ -90,10 +90,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeScreen(
     viewModel: MainViewModel,
-    onOpenTransactionHistory: () -> Unit,
     onOpenRestore: () -> Unit,
     onAddTransaction: (TransactionType) -> Unit,
-    onOpenTransactionHistorySwipe: () -> Unit,
 ) {
     val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val currentMonth = remember { YearMonth.now() }
@@ -144,6 +142,18 @@ fun HomeScreen(
     var historyRevealOffset by remember { mutableStateOf(0f) }
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
+    
+    // Callbacks for expanding the transaction history sheet (used by pie chart clicks)
+    val onHistoryOffsetChange: (Float) -> Unit = { delta ->
+        historyRevealOffset = (historyRevealOffset + delta).coerceIn(0f, 1f)
+    }
+    val onToggleHistoryFull: (Boolean) -> Unit = { isOpen ->
+        scope.launch {
+            animateRevealOffset(historyRevealOffset, if (isOpen) 1f else 0f, density) { offset ->
+                historyRevealOffset = offset
+            }
+        }
+    }
 
     BackHandler(enabled = sidebarOpen) {
         sidebarOpen = false
@@ -236,11 +246,11 @@ fun HomeScreen(
                     incomeCents = pageTotalIncome,
                     expenseCents = pageTotalExpense,
                     modifier = Modifier.padding(12.dp),
-                    // Clicking a pie chart section opens the month's transaction history with that
+                    // Clicking a pie chart section expands the inline transaction history with that
                     // category's accordion already expanded.
                     onCategoryClick = { categoryName ->
                         viewModel.requestCategoryExpansion(categoryName)
-                        onOpenTransactionHistory()
+                        onToggleHistoryFull(true)
                     },
                 )
             }
@@ -250,16 +260,8 @@ fun HomeScreen(
                 viewModel = viewModel,
                 balance = balance,
                 historyRevealOffset = historyRevealOffset,
-                onHistoryOffsetChange = { delta ->
-                    historyRevealOffset = (historyRevealOffset + delta).coerceIn(0f, 1f)
-                },
-                onToggleHistoryFull = { isOpen ->
-                    scope.launch {
-                        animateRevealOffset(historyRevealOffset, if (isOpen) 1f else 0f, density) { offset ->
-                            historyRevealOffset = offset
-                        }
-                    }
-                },
+                onHistoryOffsetChange = onHistoryOffsetChange,
+                onToggleHistoryFull = onToggleHistoryFull,
                 modifier = Modifier.fillMaxWidth(),
             )
 
