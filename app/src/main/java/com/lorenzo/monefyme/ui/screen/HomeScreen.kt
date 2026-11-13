@@ -355,6 +355,15 @@ private fun BalanceAndHistorySheet(
     val categoriesMap = remember(allCategories) {
         allCategories.associateBy { it.id }
     }
+    
+    val expansionRequest by viewModel.categoryExpansionRequest.collectAsStateWithLifecycle()
+    var categoryToExpand by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(expansionRequest) {
+        val requested = viewModel.consumeCategoryExpansionRequest()
+        if (requested != null) {
+            categoryToExpand = requested
+        }
+    }
 
     val balanceBoxHeightDp = 70.dp
     val sheetHeightDp = 500.dp
@@ -492,7 +501,7 @@ private fun BalanceAndHistorySheet(
                                 transactions = transactions,
                                 categoriesMap = categoriesMap,
                                 isGroupedByCategory = true,
-                                expandCategory = null,
+                                expandCategory = categoryToExpand,
                                 onTransactionClick = { },
                             )
                         }
