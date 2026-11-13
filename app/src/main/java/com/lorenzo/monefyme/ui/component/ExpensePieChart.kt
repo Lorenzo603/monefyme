@@ -354,24 +354,19 @@ fun ExpensePieChart(
                     val startX = center.x + cos(angle).toFloat() * chartRadiusPx
                     val startY = center.y + sin(angle).toFloat() * chartRadiusPx
                     val target = connectorSlotByCategory[normalizedCategory(slice.categoryName)] ?: return@forEach
-                    val dx = target.x - startX
-                    val dy = target.y - startY
-                    val length = sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
-                    val ndx = dx / length
-                    val ndy = dy / length
-                    // Find where the incoming line intersects the group bounding rectangle so the
-                    // line always stops at the group boundary regardless of direction.
-                    val tX = if (abs(ndx) > 0f) groupHalfWidthPx / abs(ndx) else Float.MAX_VALUE
-                    // Use the larger bottom half-height when the line arrives from below.
-                    val groupHalfHeightPx = if (ndy < 0f) groupHalfHeightBottomPx else groupHalfHeightTopPx
-                    val tY = if (abs(ndy) > 0f) groupHalfHeightPx / abs(ndy) else Float.MAX_VALUE
-                    val tIntersect = minOf(tX, tY)
-                    val endX = target.x - ndx * tIntersect
-                    val endY = target.y - ndy * tIntersect
+                    val end = connectorLineEnd(
+                        startX = startX,
+                        startY = startY,
+                        groupCenterX = target.x,
+                        groupCenterY = target.y,
+                        groupHalfWidthPx = groupHalfWidthPx,
+                        groupHalfHeightTopPx = groupHalfHeightTopPx,
+                        groupHalfHeightBottomPx = groupHalfHeightBottomPx,
+                    )
                     drawLine(
                         color = slice.color.copy(alpha = 0.9f),
                         start = androidx.compose.ui.geometry.Offset(startX, startY),
-                        end = androidx.compose.ui.geometry.Offset(endX, endY),
+                        end = end,
                         strokeWidth = lineWidthPx,
                     )
                 }
@@ -865,6 +860,39 @@ internal fun isPressWithoutDrag(
 /** Category name a click reports: the slice's original spelling, falling back to its key. */
 internal fun categoryClickCategory(categoryKey: String, displayNames: Map<String, String>): String =
     displayNames[normalizedCategory(categoryKey)] ?: categoryKey
+
+// --- Connector line endpoint (pure function so JVM unit tests can cover the geometry;
+// the Canvas wiring is asserted by ExpensePieChartConnectorTest). ---
+
+/**
+ * Endpoint of the connector line that runs from [startX],[startY] (the outer edge of the pie arc)
+ * to the icon-and-label group whose bounding-box centre is at [groupCenterX],[groupCenterY].
+ *
+ * The line always ends on the group's bounding rectangle so it never overlaps the icon or the
+ * percentage label below it, regardless of the direction it arrives from. The bottom boundary uses
+ * [groupHalfHeightBottomPx] > [groupHalfHeightTopPx] to give the percentage label extra clearance
+ * when the line arrives from below.
+ */
+internal fun connectorLineEnd(
+    startX: Float,
+    startY: Float,
+    groupCenterX: Float,
+    groupCenterY: Float,
+    groupHalfWidthPx: Float,
+    groupHalfHeightTopPx: Float,
+    groupHalfHeightBottomPx: Float,
+): Offset {
+    val dx = groupCenterX - startX
+    val dy = groupCenterY - startY
+    val length = sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
+    val ndx = dx / length
+    val ndy = dy / length
+    val tX = if (abs(ndx) > 0f) groupHalfWidthPx / abs(ndx) else Float.MAX_VALUE
+    val halfH = if (ndy < 0f) groupHalfHeightBottomPx else groupHalfHeightTopPx
+    val tY = if (abs(ndy) > 0f) halfH / abs(ndy) else Float.MAX_VALUE
+    val tIntersect = minOf(tX, tY)
+    return Offset(groupCenterX - ndx * tIntersect, groupCenterY - ndy * tIntersect)
+}
 
 internal data class CategoryVisual(
     val categoryKey: String,
