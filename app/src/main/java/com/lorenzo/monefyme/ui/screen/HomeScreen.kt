@@ -128,15 +128,7 @@ fun HomeScreen(
     }
 
     val canMoveToNextMonth = month.isBefore(currentMonth)
-    val transactions by viewModel.transactions.collectAsStateWithLifecycle()
     val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
-    val totalExpense = transactions
-        .filter { it.transactionType == TransactionType.EXPENSE }
-        .sumOf { it.amountCents }
-    val totalIncome = transactions
-        .filter { it.transactionType == TransactionType.INCOME }
-        .sumOf { it.amountCents }
-    val balance = totalIncome - totalExpense
 
     var sidebarOpen by rememberSaveable { mutableStateOf(false) }
     var historyRevealOffset by remember { mutableStateOf(0f) }
@@ -221,49 +213,64 @@ fun HomeScreen(
                 modifier = Modifier.padding(top = 10.dp, start = 8.dp, end = 8.dp),
             )
 
-            HorizontalPager(
-                state = pagerState,
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .graphicsLayer { alpha = 1f - historyRevealOffset }
-                    .testTag("month_pager"),
-                beyondViewportPageCount = 1,
-            ) { page ->
-                val pageMonth = monthForPage(page)
-                val pageTransactions by viewModel.observeMonthTransactions(pageMonth)
-                    .collectAsStateWithLifecycle(initialValue = emptyList())
-                val pageExpenseSlices by viewModel.observeMonthExpenseSlices(pageMonth)
-                    .collectAsStateWithLifecycle(initialValue = emptyList())
-                val pageTotalExpense = pageTransactions
-                    .filter { transaction -> transaction.transactionType == TransactionType.EXPENSE }
-                    .sumOf { transaction -> transaction.amountCents }
-                val pageTotalIncome = pageTransactions
-                    .filter { transaction -> transaction.transactionType == TransactionType.INCOME }
-                    .sumOf { transaction -> transaction.amountCents }
-                ExpensePieChart(
-                    slices = pageExpenseSlices,
-                    incomeCents = pageTotalIncome,
-                    expenseCents = pageTotalExpense,
-                    modifier = Modifier.padding(12.dp),
-                    // Clicking a pie chart section expands the inline transaction history with that
-                    // category's accordion already expanded.
-                    onCategoryClick = { categoryName ->
-                        viewModel.requestCategoryExpansion(categoryName)
-                        onToggleHistoryFull(true)
-                    },
-                )
+            ) {
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = 1f - historyRevealOffset }
+                        .testTag("month_pager"),
+                    beyondViewportPageCount = 1,
+                ) { page ->
+                    val pageMonth = monthForPage(page)
+                    val pageTransactions by viewModel.observeMonthTransactions(pageMonth)
+                        .collectAsStateWithLifecycle(initialValue = emptyList())
+                    val pageExpenseSlices by viewModel.observeMonthExpenseSlices(pageMonth)
+                        .collectAsStateWithLifecycle(initialValue = emptyList())
+                    val pageTotalExpense = pageTransactions
+                        .filter { transaction -> transaction.transactionType == TransactionType.EXPENSE }
+                        .sumOf { transaction -> transaction.amountCents }
+                    val pageTotalIncome = pageTransactions
+                        .filter { transaction -> transaction.transactionType == TransactionType.INCOME }
+                        .sumOf { transaction -> transaction.amountCents }
+                    val pageBalance = pageTotalIncome - pageTotalExpense
+                    
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        ExpensePieChart(
+                            slices = pageExpenseSlices,
+                            incomeCents = pageTotalIncome,
+                            expenseCents = pageTotalExpense,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(12.dp),
+                            // Clicking a pie chart section expands the inline transaction history with that
+                            // category's accordion already expanded.
+                            onCategoryClick = { categoryName ->
+                                viewModel.requestCategoryExpansion(categoryName)
+                                onToggleHistoryFull(true)
+                            },
+                        )
+                        
+                        // Balance box for this month's transactions - now part of scrollable month
+                        BalanceAndHistorySheet(
+                            viewModel = viewModel,
+                            balance = pageBalance,
+                            transactions = pageTransactions,
+                            historyRevealOffset = historyRevealOffset,
+                            onHistoryOffsetChange = onHistoryOffsetChange,
+                            onToggleHistoryFull = onToggleHistoryFull,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
             }
-
-            // Balance box and transaction history sheet (collapsible)
-            BalanceAndHistorySheet(
-                viewModel = viewModel,
-                balance = balance,
-                historyRevealOffset = historyRevealOffset,
-                onHistoryOffsetChange = onHistoryOffsetChange,
-                onToggleHistoryFull = onToggleHistoryFull,
-                modifier = Modifier.fillMaxWidth(),
-            )
 
             // Action buttons (always visible, below the sheet)
             Row(
@@ -340,12 +347,12 @@ fun HomeScreen(
 private fun BalanceAndHistorySheet(
     viewModel: MainViewModel,
     balance: Long,
+    transactions: List<com.lorenzo.monefyme.data.model.TransactionListItem>,
     historyRevealOffset: Float,
     onHistoryOffsetChange: (Float) -> Unit,
     onToggleHistoryFull: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val transactions by viewModel.transactions.collectAsStateWithLifecycle()
     val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
     val categoriesMap = remember(allCategories) {
         allCategories.associateBy { it.id }
