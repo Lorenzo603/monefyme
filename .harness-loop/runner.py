@@ -20,6 +20,7 @@ Usage (from the repository root):
 
     python .harness-loop/runner.py --model claude-haiku-4.5 --thinking high
     python .harness-loop/runner.py --model unsloth/Qwen3.5-35B-A3B-UD-Q4_K_L
+    python .harness-loop/runner.py --model Qwen3.8-Flash-Next-IQ3-XXS
 
 """
 
