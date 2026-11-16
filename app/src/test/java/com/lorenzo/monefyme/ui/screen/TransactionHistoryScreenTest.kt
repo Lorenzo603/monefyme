@@ -400,6 +400,20 @@ class TransactionHistoryScreenTest {
         )
     }
 
+    @Test
+    fun transactionHistoryScreenHasNoTransactionsTitle() {
+        val screenBody = transactionHistoryScreenSource()
+
+        assertTrue(
+            "TransactionHistoryScreen TopAppBar must have an empty title (no \"Transactions\" text).",
+            screenBody.contains("title = { }") || screenBody.contains("title = {}"),
+        )
+        assertFalse(
+            "TransactionHistoryScreen must not display \"Transactions\" in the TopAppBar title.",
+            screenBody.contains("Text(\"Transactions\")") || screenBody.contains("Text( \'Transactions\' )"),
+        )
+    }
+
     /** Body of the TransactionHistoryScreen composable, read from the source. */
     private fun transactionHistoryScreenSource(): String {
         val source = readSource("app/src/main/java/com/lorenzo/monefyme/ui/screen/TransactionHistoryScreen.kt")
