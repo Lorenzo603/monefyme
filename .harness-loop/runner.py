@@ -19,6 +19,8 @@ Usage (from the repository root):
     python .harness-loop/runner.py --only tech-logos --no-color   # plain live output
 
     python .harness-loop/runner.py --model claude-haiku-4.5 --thinking high
+    python .harness-loop/runner.py --model unsloth/Qwen3.5-35B-A3B-UD-Q4_K_L
+
 """
 
 from __future__ import annotations
