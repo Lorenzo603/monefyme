@@ -412,6 +412,28 @@ class TransactionHistoryScreenTest {
             "TransactionHistoryScreen must not display \"Transactions\" in the TopAppBar title.",
             screenBody.contains("Text(\"Transactions\")") || screenBody.contains("Text( \'Transactions\' )"),
         )
+        assertFalse(
+            "No leftover \"Transactions\" string may remain anywhere on the screen.",
+            screenBody.contains("Transactions\""),
+        )
+    }
+
+    @Test
+    fun removingTheTitleKeepsTheTopBarAndItsButtons() {
+        val screenBody = transactionHistoryScreenSource()
+
+        assertTrue(
+            "The screen keeps its TopAppBar so the month list still sits under a bar.",
+            screenBody.contains("topBar = {"),
+        )
+        assertTrue(
+            "Back navigation must survive the title removal.",
+            screenBody.contains("contentDescription = \"Back\""),
+        )
+        assertTrue(
+            "The restore entry point must survive the title removal.",
+            screenBody.contains("contentDescription = \"Open restore\""),
+        )
     }
 
     /** Body of the TransactionHistoryScreen composable, read from the source. */
