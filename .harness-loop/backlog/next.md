@@ -8,11 +8,6 @@ depends_on: nothing
 
 ## Task
 
-add android skills, test they are getting picked up by the harness. Add selftests?
-
-test the model manages to browse the internet when running with the harness. Add selftests for it.
-
-is there a way to let pi output all input? including AGENTS.md? want to check they are gtting picked up.
 
 Transaction history -> remove title label -> do manually
 
