@@ -18,17 +18,6 @@ import androidx.room.PrimaryKey
     ],
     indices = [
         Index(value = ["categoryId"]),
-        Index(
-            value = [
-                "dateEpochDay",
-                "categoryId",
-                "amountCents",
-                "type",
-                "description",
-                "account",
-            ],
-            unique = true,
-        ),
     ],
 )
 data class TransactionEntity(

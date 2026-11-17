@@ -142,7 +142,7 @@ class BudgetRepositoryIntegrationTest {
     }
 
     @Test
-    fun importCsvCreatesCategoriesMapsTypesAndStaysIdempotentOnReruns() = runBlocking {
+    fun importCsvAllowsDuplicateRowsWithSameContent() = runBlocking {
         val csv = """
             date,account,category,amount,currency,converted amount,currency,description
             01/02/2026,Cash,Food,-10,EUR,-10,EUR,lunch
@@ -151,19 +151,51 @@ class BudgetRepositoryIntegrationTest {
         """.trimIndent()
 
         val firstRun = repository.importCsv(csv.byteInputStream())
-        assertEquals(2, firstRun.insertedRows)
-        assertEquals(1, firstRun.duplicateRows)
+        assertEquals(3, firstRun.insertedRows)
+        assertEquals(0, firstRun.duplicateRows)
         assertEquals(0, firstRun.invalidRows)
 
         val february = repository.observeMonthTransactions(YearMonth.of(2026, 2)).first()
-        assertEquals(2, february.size)
+        assertEquals(3, february.size)
         assertEquals(TransactionType.INCOME, february.first().transactionType) // payday, newest first
-        assertEquals(TransactionType.EXPENSE, february.last().transactionType)
+        assertEquals(TransactionType.EXPENSE, february[1].transactionType) // second lunch
+        assertEquals(TransactionType.EXPENSE, february.last().transactionType) // first lunch
         assertEquals(setOf("Food", "Salary"), repository.observeCategoryNames().first().toSet())
 
         val secondRun = repository.importCsv(csv.byteInputStream())
-        assertEquals(0, secondRun.insertedRows)
-        assertEquals(3, secondRun.duplicateRows)
-        assertEquals(2, database.transactionDao().count())
+        assertEquals(3, secondRun.insertedRows)
+        assertEquals(0, secondRun.duplicateRows)
+        assertEquals(6, database.transactionDao().count())
+    }
+
+    @Test
+    fun saveTransactionAllowsMultipleTransactionsWithSameAmountSameCategorySameDay() = runBlocking {
+        // First transaction with amount 1000 cents
+        assertTrue(
+            repository.saveTransaction(
+                transactionId = null,
+                draft(amountCents = 1_000L, description = "first"),
+            ),
+        )
+
+        // Second transaction with same amount, same category, same day - should succeed
+        assertTrue(
+            repository.saveTransaction(
+                transactionId = null,
+                draft(amountCents = 1_000L, description = "second"),
+            ),
+        )
+
+        // Third transaction with same parameters but different description - should also succeed
+        assertTrue(
+            repository.saveTransaction(
+                transactionId = null,
+                draft(amountCents = 1_000L, description = "third"),
+            ),
+        )
+
+        assertEquals(3, database.transactionDao().count())
+        val transactions = repository.observeMonthTransactions(YearMonth.of(2026, 2)).first()
+        assertEquals(listOf("third", "second", "first"), transactions.map { it.description })
     }
 }

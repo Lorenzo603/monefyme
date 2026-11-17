@@ -232,6 +232,43 @@ class BudgetRepositoryImplTest {
     }
 
     @Test
+    fun saveTransactionAllowsMultipleTransactionsWithSameAmountSameCategorySameDay() = runBlocking {
+        val categoryId = seedCategory("Food")
+
+        // First transaction with amount 1000 cents
+        assertTrue(
+            repository.saveTransaction(
+                transactionId = null,
+                draft(categoryName = "food", amountCents = 1_000L, description = "first"),
+            ),
+        )
+
+        // Second transaction with same amount, same category, same day - should succeed
+        assertTrue(
+            repository.saveTransaction(
+                transactionId = null,
+                draft(categoryName = "food", amountCents = 1_000L, description = "second"),
+            ),
+        )
+
+        // Third transaction with same parameters but different description - should also succeed
+        assertTrue(
+            repository.saveTransaction(
+                transactionId = null,
+                draft(categoryName = "food", amountCents = 1_000L, description = "third"),
+            ),
+        )
+
+        assertEquals(3, transactionDao.queries.size)
+        val transactions = transactionDao.queries.sortedBy { it.id }
+        assertEquals("first", transactions[0].description)
+        assertEquals("second", transactions[1].description)
+        assertEquals("third", transactions[2].description)
+        assertTrue(transactions.all { it.amountCents == 1_000L })
+        assertTrue(transactions.all { it.categoryId == categoryId })
+    }
+
+    @Test
     fun deleteTransactionRemovesExistingRowAndIgnoresUnknownId() = runBlocking {
         seedCategory("Food")
         repository.saveTransaction(null, draft())
@@ -286,7 +323,7 @@ class BudgetRepositoryImplTest {
     }
 
     @Test
-    fun importCsvCountsConflictingRowsAsDuplicates() = runBlocking {
+    fun importCsvAllowsDuplicateRowsWithSameContent() = runBlocking {
         val csv = """
             date,account,category,amount,currency,converted amount,currency,description
             01/02/2026,Cash,Food,-10,EUR,-10,EUR,same row
@@ -294,14 +331,13 @@ class BudgetRepositoryImplTest {
         """.trimIndent()
 
         val first = repository.importCsv(csv.byteInputStream())
-        assertEquals(1, first.insertedRows)
-        assertEquals(1, first.duplicateRows)
+        assertEquals(2, first.insertedRows)
+        assertEquals(0, first.duplicateRows)
 
         val secondRun = repository.importCsv(csv.byteInputStream())
-        assertEquals(0, secondRun.insertedRows)
-        // Both rows of the second import conflict with what is already stored.
-        assertEquals(2, secondRun.duplicateRows)
-        assertEquals(1, transactionDao.count())
+        assertEquals(2, secondRun.insertedRows)
+        assertEquals(0, secondRun.duplicateRows)
+        assertEquals(4, transactionDao.count())
     }
 
     private fun draft(
@@ -410,15 +446,6 @@ class BudgetRepositoryImplTest {
         }
 
         override suspend fun insert(transaction: TransactionEntity): Long {
-            val duplicate = queries.any {
-                it.dateEpochDay == transaction.dateEpochDay &&
-                    it.categoryId == transaction.categoryId &&
-                    it.amountCents == transaction.amountCents &&
-                    it.type == transaction.type &&
-                    it.description == transaction.description &&
-                    it.account == transaction.account
-            }
-            if (duplicate) return -1L
             val entity = transaction.copy(id = nextId++)
             queries += entity
             return entity.id
