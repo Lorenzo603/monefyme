@@ -514,27 +514,6 @@ private fun BalanceAndHistorySheet(
                     Column(
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                                    // Month selector row
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        IconButton(onClick = viewModel::previousMonth) {
-                                            Icon(Icons.Outlined.ChevronLeft, contentDescription = "Previous month")
-                                        }
-                                        Text(
-                                            text = formatMonth(month),
-                                            style = MaterialTheme.typography.titleLarge,
-                                            fontWeight = FontWeight.SemiBold,
-                                        )
-                                        IconButton(onClick = viewModel::nextMonth) {
-                                            Icon(Icons.Outlined.ChevronRight, contentDescription = "Next month")
-                                        }
-                                    }
-
                                     HorizontalDivider(color = Color(0xFFD4EDE0))
 
                                     // Toggle grouping button
