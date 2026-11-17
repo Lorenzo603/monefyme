@@ -17,13 +17,11 @@ import com.lorenzo.monefyme.domain.TransactionType
 import com.lorenzo.monefyme.ui.screen.AddTransactionScreen
 import com.lorenzo.monefyme.ui.screen.HomeScreen
 import com.lorenzo.monefyme.ui.screen.RestoreScreen
-import com.lorenzo.monefyme.ui.screen.TransactionHistoryScreen
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
 
 private object Routes {
     const val Home = "home"
     const val Restore = "restore"
-    const val TransactionHistory = "transaction-history"
     const val AddExpense = "add-expense"
     const val AddIncome = "add-income"
 }
@@ -60,13 +58,6 @@ fun BudgetApp(viewModel: MainViewModel) {
                             navController.navigate(Routes.AddIncome)
                         }
                     },
-                )
-            }
-            composable(Routes.TransactionHistory) {
-                TransactionHistoryScreen(
-                    viewModel = viewModel,
-                    onBack = { navController.popBackStack() },
-                    onOpenRestore = { navController.navigate(Routes.Restore) },
                 )
             }
             composable(Routes.Restore) {
