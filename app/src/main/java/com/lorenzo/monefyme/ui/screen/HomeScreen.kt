@@ -490,12 +490,6 @@ private fun BalanceAndHistorySheet(
                     Column(
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        Text(
-                            text = "Transactions",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                        )
                         Box(modifier = Modifier.weight(1f)) {
                             TransactionGroupedList(
                                 transactions = transactions,

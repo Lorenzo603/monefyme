@@ -45,12 +45,15 @@ class HomeRestoreNavigationTest {
     fun balanceBoxLeftButtonOpensTransactionHistory() {
         composeTestRule.waitForIdle()
         // Index 0 is the off-screen adjacent page; index 1 is the current (displayed) page
-        composeTestRule.onAllNodesWithTag("balance_history_left", useUnmergedTree = false)
+        composeTestRule.onAllNodesWithTag("balance_history_left", useUnmergedTree = true)
             .get(1)
             .performClick()
 
-        // Index 1 is the current page; index 0 is the off-screen adjacent page.
-        composeTestRule.onAllNodesWithText("Transactions")
+        composeTestRule.waitForIdle()
+
+        // Verify we're on the TransactionHistoryScreen by checking for the history sheet
+        // (pager pre-renders adjacent pages, so there are 2 nodes; get the second one which is displayed)
+        composeTestRule.onAllNodesWithTag("history_sheet", useUnmergedTree = true)
             .get(1)
             .assertIsDisplayed()
     }
@@ -59,12 +62,15 @@ class HomeRestoreNavigationTest {
     fun balanceBoxRightButtonOpensTransactionHistory() {
         composeTestRule.waitForIdle()
         // Index 0 is the off-screen adjacent page; index 1 is the current (displayed) page
-        composeTestRule.onAllNodesWithTag("balance_history_right", useUnmergedTree = false)
+        composeTestRule.onAllNodesWithTag("balance_history_right", useUnmergedTree = true)
             .get(1)
             .performClick()
 
-        // Index 1 is the current page; index 0 is the off-screen adjacent page.
-        composeTestRule.onAllNodesWithText("Transactions")
+        composeTestRule.waitForIdle()
+
+        // Verify we're on the TransactionHistoryScreen by checking for the history sheet
+        // (pager pre-renders adjacent pages, so there are 2 nodes; get the second one which is displayed)
+        composeTestRule.onAllNodesWithTag("history_sheet", useUnmergedTree = true)
             .get(1)
             .assertIsDisplayed()
     }
