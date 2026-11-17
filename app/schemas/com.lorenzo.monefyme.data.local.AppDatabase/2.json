@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 2,
-    "identityHash": "e41de7ec5427b31cf9d8bef28ba7e73d",
+    "identityHash": "37953633bf8e7e36da7cbecb6c3d724a",
     "entities": [
       {
         "tableName": "categories",
@@ -126,6 +126,20 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_transactions_categoryId` ON `${TABLE_NAME}` (`categoryId`)"
+          },
+          {
+            "name": "index_transactions_dateEpochDay_categoryId_amountCents_type_description_account",
+            "unique": true,
+            "columnNames": [
+              "dateEpochDay",
+              "categoryId",
+              "amountCents",
+              "type",
+              "description",
+              "account"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_transactions_dateEpochDay_categoryId_amountCents_type_description_account` ON `${TABLE_NAME}` (`dateEpochDay`, `categoryId`, `amountCents`, `type`, `description`, `account`)"
           }
         ],
         "foreignKeys": [
@@ -146,7 +160,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e41de7ec5427b31cf9d8bef28ba7e73d')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '37953633bf8e7e36da7cbecb6c3d724a')"
     ]
   }
 }
