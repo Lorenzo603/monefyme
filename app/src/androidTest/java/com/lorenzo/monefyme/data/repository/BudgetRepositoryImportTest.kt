@@ -34,7 +34,7 @@ class BudgetRepositoryImportTest {
     }
 
     @Test
-    fun importCsv_isIdempotentOnDuplicateRows() = runBlocking {
+    fun importCsv_allowsDuplicateTransactions() = runBlocking {
         val csv = """
             date,account,category,amount,currency,converted amount,currency,description
             01/01/2026,Cash,Food,-10,EUR,-10,EUR,Coffee
@@ -45,9 +45,9 @@ class BudgetRepositoryImportTest {
         val result = repository.importCsv(csv.byteInputStream())
 
         assertEquals(3, result.processedRows)
-        assertEquals(1, result.insertedRows)
-        assertEquals(1, result.duplicateRows)
+        assertEquals(2, result.insertedRows)
+        assertEquals(0, result.duplicateRows)
         assertEquals(1, result.invalidRows)
-        assertEquals(1, database.transactionDao().count())
+        assertEquals(2, database.transactionDao().count())
     }
 }
