@@ -1,6 +1,8 @@
 package com.lorenzo.monefyme.ui.screen
 
+import com.lorenzo.monefyme.data.model.TransactionListItem
 import java.io.File
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -81,6 +83,130 @@ class HomeScreenExpansionRequestTest {
             "HomeScreen must also open the history sheet (toggle it to full) when a category is clicked " +
             "on the pie chart.",
             homeScreenBody.contains("onToggleHistoryFull(true)"),
+        )
+    }
+
+    @Test
+    fun groupsToExpandExpandsDateGroupForLatestTransactionWhenGroupedByDate() {
+        // Create test transactions with different dates and categories
+        val transactions = listOf(
+            TransactionListItem(
+                id = 1L,
+                dateEpochDay = LocalDate.of(2024, 1, 10).toEpochDay(),
+                categoryId = 1L,
+                categoryName = "Food",
+                amountCents = 10000L,
+                type = "EXPENSE",
+                description = "",
+                account = "",
+                currency = "EUR",
+            ),
+            TransactionListItem(
+                id = 2L,
+                dateEpochDay = LocalDate.of(2024, 1, 15).toEpochDay(),
+                categoryId = 1L,
+                categoryName = "food", // different case
+                amountCents = 15000L,
+                type = "EXPENSE",
+                description = "",
+                account = "",
+                currency = "EUR",
+            ),
+            TransactionListItem(
+                id = 3L,
+                dateEpochDay = LocalDate.of(2024, 1, 5).toEpochDay(),
+                categoryId = 2L,
+                categoryName = "Transport",
+                amountCents = 5000L,
+                type = "EXPENSE",
+                description = "",
+                account = "",
+                currency = "EUR",
+            ),
+        )
+
+        // The date format is dd/MM/uuuu (e.g., "15/01/2024")
+        val groupNames = listOf(
+            "10/01/2024",
+            "15/01/2024",
+            "05/01/2024",
+        )
+
+        // When grouping by date and clicking on "Food" category,
+        // should expand the date group containing the latest Food transaction (Jan 15)
+        val result = groupsToExpand(
+            groupNames = groupNames,
+            requestedCategory = "Food",
+            isGroupedByCategory = false, // grouping by date
+            transactions = transactions,
+        )
+
+        assertTrue(
+            "When grouped by date, clicking a category should expand the date group of its latest transaction.",
+            result.contains("15/01/2024"),
+        )
+        assertEquals(
+            "Should only expand one date group (the one with the latest transaction).",
+            1,
+            result.size,
+        )
+    }
+
+    @Test
+    fun groupsToExpandExpandsCategoryWhenGroupedByCategory() {
+        val groupNames = listOf(
+            "Food",
+            "Transport",
+            "Entertainment",
+        )
+
+        val result = groupsToExpand(
+            groupNames = groupNames,
+            requestedCategory = "food", // lowercase, should match case-insensitively
+            isGroupedByCategory = true,
+            transactions = emptyList(),
+        )
+
+        assertTrue(
+            "When grouped by category, clicking a category should expand its accordion.",
+            result.contains("Food"),
+        )
+        assertEquals(
+            "Should only expand the matching category group.",
+            1,
+            result.size,
+        )
+    }
+
+    @Test
+    fun groupsToExpandReturnsEmptyWhenNoTransactionsMatchRequestedCategory() {
+        val transactions = listOf(
+            TransactionListItem(
+                id = 1L,
+                dateEpochDay = LocalDate.of(2024, 1, 10).toEpochDay(),
+                categoryId = 1L,
+                categoryName = "Food",
+                amountCents = 10000L,
+                type = "EXPENSE",
+                description = "",
+                account = "",
+                currency = "EUR",
+            ),
+        )
+
+        val groupNames = listOf("10/01/2024")
+
+        // Requesting "Shopping" which has no transactions
+        val result = groupsToExpand(
+            groupNames = groupNames,
+            requestedCategory = "Shopping",
+            isGroupedByCategory = false,
+            transactions = transactions,
+        )
+
+        assertTrue(
+            "Should return empty list when no transactions match the requested category.",
+            result.isEmpty(),
         )
     }
 

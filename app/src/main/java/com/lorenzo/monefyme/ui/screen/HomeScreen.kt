@@ -93,6 +93,7 @@ import com.lorenzo.monefyme.ui.util.currencyAnnotatedString
 import com.lorenzo.monefyme.ui.util.centsToDisplay
 import com.lorenzo.monefyme.ui.util.formatDate
 import com.lorenzo.monefyme.ui.util.formatMonth
+import com.lorenzo.monefyme.data.model.TransactionListItem
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
@@ -769,19 +770,35 @@ internal fun isGroupExpanded(expandedGroups: Map<String, Boolean>, groupName: St
     expandedGroups[groupName] == true
 
 /**
- * The group headers a click on [requestedCategory] opens: the group whose name is that category,
- * compared case- and whitespace-insensitively (the pie chart and the transactions may spell it
- * differently). Nothing is expanded when the list is grouped by date, when no category was requested,
- * or when no group matches it.
+ * The group headers a click on [requestedCategory] opens:
+ * - When grouped by category: the group whose name is that category.
+ * - When grouped by date: the date group containing the latest transaction of that category.
+ * Nothing is expanded when no category was requested, or when no group matches it.
  */
 internal fun groupsToExpand(
     groupNames: List<String>,
     requestedCategory: String?,
     isGroupedByCategory: Boolean,
+    transactions: List<TransactionListItem>,
 ): List<String> {
-    if (!isGroupedByCategory || requestedCategory.isNullOrBlank()) return emptyList()
+    if (requestedCategory.isNullOrBlank()) return emptyList()
+    
     val target = normalizedGroupName(requestedCategory)
-    return groupNames.filter { normalizedGroupName(it) == target }
+    
+    return if (isGroupedByCategory) {
+        // Expand the category group matching the requested category
+        groupNames.filter { normalizedGroupName(it) == target }
+    } else {
+        // Find the latest transaction of the requested category, then expand its date group
+        val latestTransactionOfCategory = transactions
+            .filter { normalizedGroupName(it.categoryName) == target }
+            .maxByOrNull { it.dateEpochDay }
+        
+        if (latestTransactionOfCategory == null) return emptyList()
+        
+        val expectedDateGroup = formatDate(latestTransactionOfCategory.date)
+        groupNames.filter { normalizedGroupName(it) == normalizedGroupName(expectedDateGroup) }
+    }
 }
 
 private fun normalizedGroupName(name: String): String = name.trim().lowercase()
@@ -824,11 +841,11 @@ internal fun TransactionGroupedList(
     // header the user collapsed (or a group they opened) afterwards.
     val appliedExpansion = remember { mutableStateOf<String?>(null) }
     val groupNames = groupedTransactions.keys.toList()
-    LaunchedEffect(expandCategory, groupNames) {
+    LaunchedEffect(expandCategory, groupNames, transactions, isGroupedByCategory) {
         val category = expandCategory ?: return@LaunchedEffect
         if (appliedExpansion.value == category) return@LaunchedEffect
         appliedExpansion.value = category
-        groupsToExpand(groupNames, category, isGroupedByCategory).forEach { groupName ->
+        groupsToExpand(groupNames, category, isGroupedByCategory, transactions).forEach { groupName ->
             expandedGroups[groupName] = true
         }
     }
