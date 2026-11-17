@@ -373,6 +373,7 @@ private fun BalanceAndHistorySheet(
     month: YearMonth,
     modifier: Modifier = Modifier,
 ) {
+    val groupByCategory by viewModel.groupByCategory.collectAsStateWithLifecycle()
     var editorVisible by rememberSaveable { mutableStateOf(false) }
     var editingTransaction by rememberSaveable { mutableStateOf<com.lorenzo.monefyme.data.model.TransactionListItem?>(null) }
     val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
@@ -516,29 +517,22 @@ private fun BalanceAndHistorySheet(
                     ) {
                                     HorizontalDivider(color = Color(0xFFD4EDE0))
 
-                                    // Toggle grouping button
-                                    var isGroupedByCategory by rememberSaveable { mutableStateOf(true) }
-                                    LaunchedEffect(categoryToExpand) {
-                                        isGroupedByCategory = groupedByCategoryAfterExpansionRequest(
-                                            isGroupedByCategory = isGroupedByCategory,
-                                            requestedCategory = categoryToExpand,
-                                        )
-                                    }
+                                    // Toggle grouping button - uses ViewModel's persisted state
                                     GroupingToggle(
-                                        isGroupedByCategory = isGroupedByCategory,
-                                        onToggle = { isGroupedByCategory = !isGroupedByCategory },
+                                        isGroupedByCategory = groupByCategory,
+                                        onToggle = { viewModel.toggleGroupByCategory() },
                                     )
 
                         Box(modifier = Modifier.weight(1f)) {
                             TransactionGroupedList(
                                 transactions = transactions,
                                 categoriesMap = categoriesMap,
-                                                        isGroupedByCategory = isGroupedByCategory,
+                                isGroupedByCategory = groupByCategory,
                                 expandCategory = categoryToExpand,
-                                                        onTransactionClick = { transaction ->
-                                                            editingTransaction = transaction
-                                                            editorVisible = true
-                                                        },
+                                onTransactionClick = { transaction ->
+                                    editingTransaction = transaction
+                                    editorVisible = true
+                                },
                             )
                         }
                     }

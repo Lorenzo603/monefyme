@@ -400,6 +400,26 @@ class MainViewModelTest {
         assertNull(vm.consumeCategoryExpansionRequest())
     }
 
+    // --- group by category preference ------------------------------------------------
+
+    @Test
+    fun groupByCategoryDefaultsToTrue() = runTest(testDispatcher) {
+        val vm = viewModel()
+
+        assertTrue(vm.groupByCategory.value)
+    }
+
+    @Test
+    fun toggleGroupByCategoryFlipsTheValueAndPersistsIt() = runTest(testDispatcher) {
+        val vm = viewModel()
+        assertTrue(vm.groupByCategory.value)
+
+        vm.toggleGroupByCategory()
+
+        // The state should flip after the coroutine completes
+        assertFalse(vm.groupByCategory.value)
+    }
+
     private fun transactionItem() = TransactionListItem(
         id = 1L,
         dateEpochDay = YearMonth.of(2020, 1).atDay(5).toEpochDay(),

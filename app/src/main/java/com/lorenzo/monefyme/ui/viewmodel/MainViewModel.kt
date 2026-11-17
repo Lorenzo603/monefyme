@@ -3,6 +3,8 @@ package com.lorenzo.monefyme.ui.viewmodel
 import android.database.SQLException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lorenzo.monefyme.data.local.getGroupByCategoryFlow
+import com.lorenzo.monefyme.data.local.saveGroupByCategory
 import com.lorenzo.monefyme.data.model.CategoryItem
 import com.lorenzo.monefyme.data.model.ExpenseSlice
 import com.lorenzo.monefyme.data.model.TransactionListItem
@@ -17,16 +19,23 @@ import java.time.YearMonth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(
     private val repository: BudgetRepository,
 ) : ViewModel() {
+    /**
+     * Whether transactions should be grouped by category (true) or by date (false).
+     * Loaded from in-memory storage and updated when the user toggles it.
+     */
+    val groupByCategory: StateFlow<Boolean> = getGroupByCategoryFlow()
     private val _selectedMonth = MutableStateFlow(YearMonth.now())
     val selectedMonth: StateFlow<YearMonth> = _selectedMonth.asStateFlow()
 
@@ -67,6 +76,17 @@ class MainViewModel(
      */
     private val _categoryExpansionRequest = MutableStateFlow<String?>(null)
     val categoryExpansionRequest: StateFlow<String?> = _categoryExpansionRequest.asStateFlow()
+
+    /**
+     * Toggle the transaction grouping preference and persist it to in-memory storage.
+     * When true, transactions are grouped by category; when false, they're grouped by date.
+     */
+    fun toggleGroupByCategory() {
+        viewModelScope.launch {
+            val newValue = !groupByCategory.value
+            saveGroupByCategory(newValue)
+        }
+    }
 
     fun previousMonth() {
         selectMonth(_selectedMonth.value.minusMonths(1))
