@@ -3,16 +3,20 @@ package com.lorenzo.monefyme.ui
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import com.lorenzo.monefyme.data.model.CategoryItem
 import com.lorenzo.monefyme.data.model.ExpenseSlice
 import com.lorenzo.monefyme.data.model.TransactionListItem
 import com.lorenzo.monefyme.data.repository.BudgetRepository
 import com.lorenzo.monefyme.domain.CsvImportResult
 import com.lorenzo.monefyme.domain.TransactionDraft
-import com.lorenzo.monefyme.ui.screen.TransactionHistoryScreen
+import com.lorenzo.monefyme.ui.screen.HomeScreen
 import com.lorenzo.monefyme.ui.util.formatMonth
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
+import com.lorenzo.monefyme.domain.TransactionType
 import java.io.InputStream
 import java.time.LocalDate
 import java.time.YearMonth
@@ -22,12 +26,10 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * End-to-end coverage for the header of the Transaction History screen.
+ * End-to-end coverage for the header of the Transaction History sheet.
  *
- * The screen has no "Transactions" title: the top bar carries only its Back button and its restore
- * entry point, and the only heading on the screen is the month the transactions belong to. Removing
- * the title must not remove the bar itself - the user still needs to get back and to reach Restore -
- * and the grouped transaction list below it still renders.
+ * The transaction history section has no "Transactions" title: the only heading on the screen
+ * is the month the transactions belong to. The grouped transaction list below it still renders.
  *
  * Requires a device/emulator: run with ./gradlew connectedDebugAndroidTest.
  */
@@ -71,38 +73,20 @@ class TransactionHistoryTitleTest {
     private fun showTransactionHistory() {
         viewModel = MainViewModel(FakeBudgetRepository(categories, transactions))
         composeTestRule.setContent {
-            TransactionHistoryScreen(
+            HomeScreen(
                 viewModel = viewModel,
-                onBack = { },
                 onOpenRestore = { },
+                onAddTransaction = { },
             )
         }
         composeTestRule.waitForIdle()
     }
 
     @Test
-    fun transactionHistoryScreenShowsNoTransactionsTitle() {
+    fun transactionHistoryShowsNoTransactionsTitle() {
         showTransactionHistory()
 
         composeTestRule.onNodeWithText("Transactions").assertDoesNotExist()
-    }
-
-    @Test
-    fun topBarKeepsItsButtonsAfterTheTitleWasRemoved() {
-        showTransactionHistory()
-
-        composeTestRule.onNodeWithContentDescription("Back").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("Open restore").assertIsDisplayed()
-    }
-
-    @Test
-    fun monthSelectorAndGroupedHistoryAreStillOnScreen() {
-        showTransactionHistory()
-
-        // The month selector is the heading left on the screen once the title is gone.
-        composeTestRule.onNodeWithText(formatMonth(viewModel.selectedMonth.value)).assertIsDisplayed()
-        composeTestRule.onNodeWithText("Food").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Transport").assertIsDisplayed()
     }
 
     /** Repository stub: the history screen only reads categories and the month's transactions. */

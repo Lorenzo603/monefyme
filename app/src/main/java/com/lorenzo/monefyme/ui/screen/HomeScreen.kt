@@ -813,7 +813,7 @@ internal fun groupedByCategoryAfterExpansionRequest(
 ): Boolean = if (requestedCategory != null) true else isGroupedByCategory
 
 @Composable
-private fun TransactionGroupedList(
+internal fun TransactionGroupedList(
     transactions: List<com.lorenzo.monefyme.data.model.TransactionListItem>,
     categoriesMap: Map<Long, com.lorenzo.monefyme.data.model.CategoryItem>,
     isGroupedByCategory: Boolean,
