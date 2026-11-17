@@ -60,7 +60,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -103,7 +102,7 @@ fun AddTransactionScreen(
     var startNewNumber by rememberSaveable { mutableStateOf(true) }
     var amountFlashError by remember { mutableStateOf(false) }
     val amountDisplayColor by animateColorAsState(
-        targetValue = if (amountFlashError) Color(0xFFE53935) else Color.White,
+        targetValue = if (amountFlashError) Color(0xFFE53935) else Color(0xFF2F5E4B),
         animationSpec = tween(durationMillis = 100),
         label = "amountFlash",
     )
