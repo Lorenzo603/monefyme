@@ -488,18 +488,35 @@ private fun BalanceAndHistorySheet(
                         )
                     }
                 }
-                IconButton(
-                    onClick = { onToggleHistoryFull(currentRevealOffset <= 0.5f) },
-                    modifier = Modifier
-                        .size(60.dp)
-                        .testTag("balance_history_right"),
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Menu,
-                        contentDescription = "Open transaction history",
-                        tint = Color(0xFF7CC8A4),
-                        modifier = Modifier.size(40.dp),
-                    )
+                // Show grouping toggle when history is open, otherwise show right hamburger icon
+                if (historyRevealOffset > 0f) {
+                    IconButton(
+                        onClick = { viewModel.toggleGroupByCategory() },
+                        modifier = Modifier
+                            .size(60.dp)
+                            .testTag("grouping_toggle_button"),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Menu,
+                            contentDescription = "Toggle grouping",
+                            tint = Color(0xFF7CC8A4),
+                            modifier = Modifier.size(40.dp),
+                        )
+                    }
+                } else {
+                    IconButton(
+                        onClick = { onToggleHistoryFull(currentRevealOffset <= 0.5f) },
+                        modifier = Modifier
+                            .size(60.dp)
+                            .testTag("balance_history_right"),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Menu,
+                            contentDescription = "Open transaction history",
+                            tint = Color(0xFF7CC8A4),
+                            modifier = Modifier.size(40.dp),
+                        )
+                    }
                 }
             }
 
@@ -516,12 +533,6 @@ private fun BalanceAndHistorySheet(
                         modifier = Modifier.fillMaxSize(),
                     ) {
                                     HorizontalDivider(color = Color(0xFFD4EDE0))
-
-                                    // Toggle grouping button - uses ViewModel's persisted state
-                                    GroupingToggle(
-                                        isGroupedByCategory = groupByCategory,
-                                        onToggle = { viewModel.toggleGroupByCategory() },
-                                    )
 
                         Box(modifier = Modifier.weight(1f)) {
                             TransactionGroupedList(
@@ -541,7 +552,7 @@ private fun BalanceAndHistorySheet(
         }
     }
 
-                            if (editorVisible) {
+    if (editorVisible) {
                                 TransactionEditorDialog(
                                     existing = editingTransaction,
                                     categories = allCategories.map { it.displayName },

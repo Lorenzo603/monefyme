@@ -19,9 +19,9 @@ class HomeScreenHistoryMonthSelectorRemovalTest {
     /**
      * Test that the BalanceAndHistorySheet does not contain a month selector with ChevronLeft/ChevronRight.
      * 
+     * The grouping toggle has been moved to the right anchor position (instead of inside the history sheet).
      * The history sheet should only have:
      * - HorizontalDivider
-     * - GroupingToggle button
      * - TransactionGroupedList
      * 
      * NOT a Row with ChevronLeft/Right buttons and formatted month display.
@@ -48,7 +48,6 @@ class HomeScreenHistoryMonthSelectorRemovalTest {
         val balanceSheetContent = homeScreenSource.substring(balanceSheetStart, sheetEnd)
 
         // The history sheet should NOT contain a Row with ChevronLeft/ChevronRight for month selection
-        // (These would be inside the HorizontalDivider section of the history sheet)
         
         // Find the HorizontalDivider in the history sheet
         val horizontalDividerIndex = balanceSheetContent.indexOf("HorizontalDivider")
@@ -57,45 +56,32 @@ class HomeScreenHistoryMonthSelectorRemovalTest {
             horizontalDividerIndex >= 0
         )
 
-        // Find the GroupingToggle in the history sheet
-        val groupingToggleIndex = balanceSheetContent.indexOf("GroupingToggle(")
-        assertTrue(
-            "BalanceAndHistorySheet should have a GroupingToggle button",
-            groupingToggleIndex >= 0
-        )
-
-        // Check that HorizontalDivider comes before GroupingToggle
-        assertTrue(
-            "HorizontalDivider should come before GroupingToggle in the history sheet",
-            horizontalDividerIndex < groupingToggleIndex
-        )
-
-        // The section between HorizontalDivider and GroupingToggle should NOT contain:
+        // Check that the section after HorizontalDivider does NOT contain:
         // - ChevronLeft icon (used for previous month navigation)
         // - ChevronRight icon (used for next month navigation)
         // - formatMonth function call (used to display formatted month)
         
-        val dividerToGrouping = balanceSheetContent.substring(horizontalDividerIndex, groupingToggleIndex)
+        val afterDivider = balanceSheetContent.substring(horizontalDividerIndex)
         
         assertTrue(
-            "The section between HorizontalDivider and GroupingToggle should NOT contain ChevronLeft icon (month selector removed)",
-            dividerToGrouping.indexOf("Icons.Outlined.ChevronLeft") < 0,
+            "The section after HorizontalDivider should NOT contain ChevronLeft icon (month selector removed)",
+            afterDivider.indexOf("Icons.Outlined.ChevronLeft") < 0,
         )
 
         assertTrue(
-            "The section between HorizontalDivider and GroupingToggle should NOT contain ChevronRight icon (month selector removed)",
-            dividerToGrouping.indexOf("Icons.Outlined.ChevronRight") < 0,
+            "The section after HorizontalDivider should NOT contain ChevronRight icon (month selector removed)",
+            afterDivider.indexOf("Icons.Outlined.ChevronRight") < 0,
         )
 
         assertTrue(
-            "The section between HorizontalDivider and GroupingToggle should NOT contain formatMonth call (month selector removed)",
-            dividerToGrouping.indexOf("formatMonth") < 0,
+            "The section after HorizontalDivider should NOT contain formatMonth call (month selector removed)",
+            afterDivider.indexOf("formatMonth") < 0,
         )
 
-        // Verify that the grouping toggle button directly follows the horizontal divider (with only comments/whitespace)
+        // Verify that GroupingToggle is NOT inside the history sheet content (moved to right anchor)
         assertTrue(
-            "After removing month selector, GroupingToggle should directly follow HorizontalDivider in the history sheet",
-            true
+            "GroupingToggle should be moved to the right anchor position, not inside the history sheet",
+            balanceSheetContent.indexOf("GroupingToggle(") < 0,
         )
     }
 
