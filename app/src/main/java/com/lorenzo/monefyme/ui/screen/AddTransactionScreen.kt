@@ -23,8 +23,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.outlined.AddCircleOutline
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Diversity3
 import androidx.compose.material.icons.outlined.LocalAtm
@@ -102,7 +104,7 @@ fun AddTransactionScreen(
     var startNewNumber by rememberSaveable { mutableStateOf(true) }
     var amountFlashError by remember { mutableStateOf(false) }
     val amountDisplayColor by animateColorAsState(
-        targetValue = if (amountFlashError) Color(0xFFE53935) else Color(0xFF2F5E4B),
+        targetValue = if (amountFlashError) Color(0xFFE53935) else Color.White,
         animationSpec = tween(durationMillis = 100),
         label = "amountFlash",
     )
@@ -254,10 +256,11 @@ fun AddTransactionScreen(
                         startNewNumber = amountText == "0"
                     },
                 ) {
-                    Text(
-                        text = "⌫",
-                        color = Color.White,
-                        fontSize = 28.sp,
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Backspace,
+                        contentDescription = "Backspace",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp),
                     )
                 }
             }
