@@ -56,16 +56,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -243,32 +235,12 @@ fun AddTransactionScreen(
                         .padding(end = 14.dp),
                     color = Color.White.copy(alpha = 0.9f),
                 )
-                var textBounds by remember { mutableStateOf(Rect(0f, 0f, 0f, 0f)) }
                 Text(
                     text = currencyAnnotatedString(text = amountText, baseFontSize = 58.sp),
                     modifier = Modifier
                         .weight(1f)
-                        .testTag("amount_input")
-                        .onGloballyPositioned { coordinates ->
-                            val size = coordinates.size
-                            textBounds = Rect(
-                                left = 0f,
-                                top = 0f,
-                                right = size.width.toFloat(),
-                                bottom = size.height.toFloat(),
-                            )
-                        }
-                        .drawWithContent {
-                            drawContent()
-                            // Draw outline (stroke) around the text for better contrast on green background
-                            drawRect(
-                                color = Color.Black.copy(alpha = 0.3f),
-                                style = Stroke(width = 2.dp.toPx()),
-                                topLeft = Offset(0f, 0f),
-                                size = this.size,
-                            )
-                        },
-                    color = Color.White,
+                        .testTag("amount_input"),
+                    color = amountDisplayColor,
                     fontSize = 58.sp,
                     fontWeight = FontWeight.Normal,
                     textAlign = TextAlign.Center,
