@@ -161,11 +161,6 @@ fun AddTransactionScreen(
                     Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                 }
             },
-            actions = {
-                IconButton(onClick = { showCategoryPicker = !showCategoryPicker }) {
-                    Icon(Icons.Outlined.SwapHoriz, contentDescription = "Toggle category")
-                }
-            },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = Color(0xFF74C792),
                 titleContentColor = Color.White,
