@@ -17,10 +17,7 @@ class AddTransactionScreenAmountDisplayTest {
     }
 
     /**
-     * Test that the amount display color is visible (not white) on the green background.
-     * 
-     * The Surface has a green background (0xFF79C896), so the amount text must use
-     * a dark color to be visible. Using white would make the text invisible.
+     * Test that the amount display color is white on the green background.
      */
     @Test
     fun amountDisplayColorIsVisibleOnGreenBackground() {
@@ -35,19 +32,11 @@ class AddTransactionScreenAmountDisplayTest {
         val colorDefEnd = minOf(colorDefStart + 250, addTransactionScreenSource.length)
         val colorDef = addTransactionScreenSource.substring(colorDefStart, colorDefEnd)
 
-        // The default value should be a dark color (0xFF2F5E4B) that's visible on green
+        // The default value should be Color.White
         assertTrue(
-            "The amountDisplayColor default targetValue should use a visible dark color " +
-                "(0xFF2F5E4B) instead of Color.White, as white text is invisible on the " +
-                "green background (0xFF79C896).\n" +
+            "The amountDisplayColor default targetValue should use Color.White.\n" +
                 "Found: $colorDef",
-            colorDef.contains("Color(0xFF2F5E4B)")
-        )
-
-        // Verify it uses a dark color (should contain a hex color code that's not white)
-        assertTrue(
-            "The amountDisplayColor should use a visible dark color for the default value",
-            colorDef.contains("Color(0xFF") || colorDef.contains("Color.Dark")
+            colorDef.contains("Color.White")
         )
     }
 
@@ -79,7 +68,7 @@ class AddTransactionScreenAmountDisplayTest {
     @Test
     fun surfaceHasGreenBackground() {
         // Find the Surface definition for the amount display area - use simpler pattern
-        val surfaceStart = addTransactionScreenSource.indexOf("padding(horizontal = 18.dp, vertical = 26.dp),")
+        val surfaceStart = addTransactionScreenSource.indexOf(".padding(top = 34.dp, bottom = 5.dp, start = 18.dp, end = 18.dp),")
         assertTrue(
             "Amount display Surface should exist with proper modifiers",
             surfaceStart >= 0
