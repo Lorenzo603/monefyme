@@ -5,9 +5,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Tests that the amount input box displays values visibly when users click number buttons.
+ * Tests that the amount input box displays values with white text and outline on green background.
  * 
- * This ensures that the amount text color is visible against the green background
+ * This ensures that the amount text is visible and has proper contrast against the green background
  * of the amount display box, so users can see the value as they type it.
  */
 class AddTransactionScreenAmountDisplayTest {
@@ -17,59 +17,52 @@ class AddTransactionScreenAmountDisplayTest {
     }
 
     /**
-     * Test that the amount display color is visible (not white) on the green background.
+     * Test that the amount text uses white color for visibility on the green background.
      * 
-     * The Surface has a green background (0xFF79C896), so the amount text must use
-     * a dark color to be visible. Using white would make the text invisible.
+     * The Surface has a green background (0xFF79C896), so the amount text should use
+     * white color with an outline to ensure visibility and contrast.
      */
     @Test
-    fun amountDisplayColorIsVisibleOnGreenBackground() {
-        // Find the animateColorAsState definition for amountDisplayColor
-        val colorDefStart = addTransactionScreenSource.indexOf("val amountDisplayColor by animateColorAsState(")
-        assertTrue(
-            "amountDisplayColor should be defined using animateColorAsState",
-            colorDefStart >= 0
-        )
-
-        // Get the next 250 characters to check the targetValue
-        val colorDefEnd = minOf(colorDefStart + 250, addTransactionScreenSource.length)
-        val colorDef = addTransactionScreenSource.substring(colorDefStart, colorDefEnd)
-
-        // The default value should be a dark color (0xFF2F5E4B) that's visible on green
-        assertTrue(
-            "The amountDisplayColor default targetValue should use a visible dark color " +
-                "(0xFF2F5E4B) instead of Color.White, as white text is invisible on the " +
-                "green background (0xFF79C896).\n" +
-                "Found: $colorDef",
-            colorDef.contains("Color(0xFF2F5E4B)")
-        )
-
-        // Verify it uses a dark color (should contain a hex color code that's not white)
-        assertTrue(
-            "The amountDisplayColor should use a visible dark color for the default value",
-            colorDef.contains("Color(0xFF") || colorDef.contains("Color.Dark")
-        )
-    }
-
-    /**
-     * Test that the amount text uses the amountDisplayColor variable.
-     */
-    @Test
-    fun amountTextUsesAmountDisplayColor() {
-        // Find where the amount Text composable is defined - use simpler pattern
+    fun amountTextUsesWhiteColor() {
+        // Find where the currencyAnnotatedString is used
         val textStart = addTransactionScreenSource.indexOf("currencyAnnotatedString(text = amountText, baseFontSize = 58.sp)")
         assertTrue(
             "Amount display Text should use currencyAnnotatedString with amountText",
             textStart >= 0
         )
 
-        // Get the next 300 characters to check the color property
-        val textEnd = minOf(textStart + 300, addTransactionScreenSource.length)
+        // Get the next 1300 characters to check for white color and outline
+        val textEnd = minOf(textStart + 1300, addTransactionScreenSource.length)
+        val textDef = addTransactionScreenSource.substring(textStart, textEnd)
+
+        // Verify white color is used
+        assertTrue(
+            "The amount Text should use Color.White for visibility on the green background.\n" +
+                "Found: $textDef",
+            textDef.contains("color = Color.White")
+        )
+    }
+
+    /**
+     * Test that the amount text has an outline (stroke) effect for better contrast.
+     */
+    @Test
+    fun amountTextHasOutlineEffect() {
+        // Find where the currencyAnnotatedString is used
+        val textStart = addTransactionScreenSource.indexOf("currencyAnnotatedString(text = amountText, baseFontSize = 58.sp)")
+        assertTrue(
+            "Amount display Text should use currencyAnnotatedString with amountText",
+            textStart >= 0
+        )
+
+        // Get the next 1300 characters to check for outline drawing
+        val textEnd = minOf(textStart + 1300, addTransactionScreenSource.length)
         val textDef = addTransactionScreenSource.substring(textStart, textEnd)
 
         assertTrue(
-            "The amount Text should use amountDisplayColor for its color, which is now a visible dark color",
-            textDef.contains("color = amountDisplayColor"),
+            "The amount Text should have an outline (stroke) effect using drawWithContent for contrast.\n" +
+                "Found: $textDef",
+            textDef.contains("drawWithContent") && textDef.contains("drawRect")
         )
     }
 
