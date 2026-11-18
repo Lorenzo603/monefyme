@@ -45,6 +45,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -229,7 +230,7 @@ fun AddTransactionScreen(
                         style = MaterialTheme.typography.titleLarge,
                     )
                 }
-                HorizontalDivider(
+                VerticalDivider(
                     modifier = Modifier
                         .height(74.dp)
                         .padding(end = 14.dp),
