@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.outlined.LocalAtm
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.WorkOutline
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -633,7 +635,7 @@ private fun DatePickerModal(
                             selectedMonth == LocalDate.now().monthValue - 1 &&
                             selectedYear == LocalDate.now().year
 
-                        OutlinedButton(
+                        Button(
                             onClick = {
                                 selectedDay = day
                                 onDateSelected(
@@ -643,17 +645,18 @@ private fun DatePickerModal(
                             modifier = Modifier
                                 .size(40.dp),
                             shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
+                            colors = ButtonDefaults.buttonColors(
                                 containerColor = if (isSelected) Color(0xFF74C792) else Color(0xFFEAF8F2),
                                 contentColor = if (isSelected) Color.White else Color(0xFF2D3336),
-                                disabledContainerColor = Color.Transparent,
-                                disabledContentColor = Color.Gray,
                             ),
+                            contentPadding = PaddingValues(0.dp),
                             enabled = true,
                         ) {
                             Text(
                                 text = day.toString(),
+                                color = if (isSelected) Color.White else Color(0xFF2D3336),
                                 fontWeight = if (isToday) FontWeight.SemiBold else FontWeight.Normal,
+                                fontSize = 14.sp,
                             )
                         }
                     }
