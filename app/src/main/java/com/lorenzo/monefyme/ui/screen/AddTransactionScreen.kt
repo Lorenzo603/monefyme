@@ -177,7 +177,7 @@ fun AddTransactionScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 20.dp)
+                .padding(top = 12.dp)
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() },
@@ -195,7 +195,7 @@ fun AddTransactionScreen(
             Text(
                 text = todayToUse.format(headerDateFormatter),
                 modifier = Modifier.padding(start = 6.dp),
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.bodyLarge,
                 color = Color(0xFF2D3336),
             )
         }
@@ -203,7 +203,7 @@ fun AddTransactionScreen(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 26.dp),
+                .padding(top = 34.dp, bottom = 5.dp, start = 18.dp, end = 18.dp),
             shape = RoundedCornerShape(6.dp),
             color = Color(0xFF79C896),
             shadowElevation = 6.dp,
@@ -211,7 +211,7 @@ fun AddTransactionScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(110.dp)
+                    .height(90.dp)
                     .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -269,7 +269,7 @@ fun AddTransactionScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp),
+                .padding(top = 20.dp, bottom = 45.dp, start = 20.dp, end = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Outlined.WorkOutline, contentDescription = null, tint = Color(0xFF7DC8A5))
