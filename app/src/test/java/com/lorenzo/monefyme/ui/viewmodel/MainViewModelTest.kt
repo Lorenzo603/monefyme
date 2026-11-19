@@ -400,6 +400,68 @@ class MainViewModelTest {
         assertNull(vm.consumeCategoryExpansionRequest())
     }
 
+    // --- a pie chart icon slot click says which category add-expense must preselect ---------
+
+    @Test
+    fun noAddExpenseCategoryIsPreselectedByDefault() = runTest(testDispatcher) {
+        val vm = viewModel()
+
+        assertNull(vm.addExpenseCategoryRequest.value)
+        assertNull(vm.consumeAddExpenseCategoryRequest())
+    }
+
+    @Test
+    fun requestingAddExpenseIsVisibleToAddExpenseScreen() = runTest(testDispatcher) {
+        val vm = viewModel()
+
+        vm.requestAddExpense("Food")
+
+        assertEquals("Food", vm.addExpenseCategoryRequest.value)
+    }
+
+    @Test
+    fun consumingTheAddExpenseCategoryAppliesItExactlyOnce() = runTest(testDispatcher) {
+        val vm = viewModel()
+
+        vm.requestAddExpense("Transport")
+
+        assertEquals("Transport", vm.consumeAddExpenseCategoryRequest())
+        assertNull(
+            "A second read must not preselect the category on the next open of the add-expense screen.",
+            vm.consumeAddExpenseCategoryRequest(),
+        )
+        assertNull(vm.addExpenseCategoryRequest.value)
+    }
+
+    @Test
+    fun laterAddExpenseRequestsReplaceEarlierOnes() = runTest(testDispatcher) {
+        val vm = viewModel()
+
+        vm.requestAddExpense("Food")
+        vm.requestAddExpense("Utilities")
+
+        assertEquals("Utilities", vm.consumeAddExpenseCategoryRequest())
+    }
+
+    @Test
+    fun blankAddExpenseCategoryRequestsNothing() = runTest(testDispatcher) {
+        val vm = viewModel()
+
+        vm.requestAddExpense("   ")
+
+        assertNull(vm.addExpenseCategoryRequest.value)
+        assertNull(vm.consumeAddExpenseCategoryRequest())
+    }
+
+    @Test
+    fun addExpenseCategoryRequestIsTrimmed() = runTest(testDispatcher) {
+        val vm = viewModel()
+
+        vm.requestAddExpense("  Food  ")
+
+        assertEquals("Food", vm.consumeAddExpenseCategoryRequest())
+    }
+
     // --- group by category preference ------------------------------------------------
 
     @Test

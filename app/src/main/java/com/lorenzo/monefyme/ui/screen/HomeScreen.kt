@@ -110,6 +110,8 @@ fun HomeScreen(
     viewModel: MainViewModel,
     onOpenRestore: () -> Unit,
     onAddTransaction: (TransactionType) -> Unit,
+    // Opens the add-expense flow with the clicked pie chart icon slot's category preselected.
+    onAddExpenseForCategory: (String) -> Unit,
 ) {
     val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val currentMonth = remember { YearMonth.now() }
@@ -275,6 +277,11 @@ fun HomeScreen(
                             onCategoryClick = { categoryName ->
                                 viewModel.requestCategoryExpansion(categoryName)
                                 onToggleHistoryFull(true)
+                            },
+                            // A click on a category's icon slot opens the add-expense flow with that
+                            // category already preselected.
+                            onCategorySlotClick = { categoryName ->
+                                onAddExpenseForCategory(categoryName)
                             },
                         )
 

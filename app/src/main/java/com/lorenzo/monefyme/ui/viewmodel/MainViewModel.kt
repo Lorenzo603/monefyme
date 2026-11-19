@@ -128,6 +128,31 @@ class MainViewModel(
         return pending
     }
 
+    /**
+     * Category to preselect on the add-expense screen: set when a pie chart category icon slot is
+     * clicked (which navigates there) and cleared by [consumeAddExpenseCategoryRequest], so one
+     * click preselects exactly once.
+     */
+    private val _addExpenseCategoryRequest = MutableStateFlow<String?>(null)
+    val addExpenseCategoryRequest: StateFlow<String?> = _addExpenseCategoryRequest.asStateFlow()
+
+    /** Ask the add-expense screen to open with [categoryName] already preselected; blanks are ignored. */
+    fun requestAddExpense(categoryName: String) {
+        _addExpenseCategoryRequest.value = categoryName.trim().takeIf { it.isNotEmpty() }
+    }
+
+    /**
+     * The pending add-expense preselection, or null when there is none. Reading it consumes it, so
+     * the next time the add-expense screen opens without a click it starts with no category.
+     */
+    fun consumeAddExpenseCategoryRequest(): String? {
+        val pending = _addExpenseCategoryRequest.value
+        if (pending != null) {
+            _addExpenseCategoryRequest.value = null
+        }
+        return pending
+    }
+
     suspend fun saveTransaction(
         transactionId: Long?,
         dateText: String,

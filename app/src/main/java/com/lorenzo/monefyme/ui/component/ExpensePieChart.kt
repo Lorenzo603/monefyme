@@ -61,11 +61,20 @@ fun ExpensePieChart(
     modifier: Modifier = Modifier,
     /*
      * Called with the clicked category's name when a tap lands on one of the chart's sections (its
-     * colored ring arc) or on that category's icon slot; the caller uses it to open the transaction
-     * history with that category already expanded. A press that turns into a drag (the month pager
-     * swipe) is cancelled and reports no click.
+     * colored ring arc); the caller uses it to open the transaction history with that category
+     * already expanded. Clicks on a category's icon slot are reported through [onCategorySlotClick]
+     * instead. A press that turns into a drag (the month pager swipe) is cancelled and reports no
+     * click.
      */
     onCategoryClick: ((String) -> Unit)? = null,
+    /*
+     * Called with the clicked slot's category name when a click (tap, or mouse click release that
+     * stayed where it started) lands on a category's icon slot; the caller uses it to open the
+     * add-expense flow with that category preselected. A press that turns into a drag (the month
+     * pager swipe) is cancelled and reports no click; holding the press still keeps showing the
+     * category info in the centre of the chart.
+     */
+    onCategorySlotClick: ((String) -> Unit)? = null,
 ) {
     val totalExpense = slices.sumOf { it.totalCents }
     val backgroundColor = Color(0xFFEAF8F2)
@@ -489,16 +498,18 @@ fun ExpensePieChart(
                                 pressedCategoryKey = pressedCategoryAfterPress(pressedCategoryKey, categoryKey)
                                 val up = waitForUpOrCancellation(PointerEventPass.Initial)
                                 pressedCategoryKey = pressedCategoryAfterRelease(pressedCategoryKey)
-                                // A press that ends where it started is a click on that category's section.
+                                // A press that ends where it started is a click on that category's icon
+                                // slot: it opens the add-expense flow with the category preselected
+                                // (holding the press above still keeps showing the category info in the centre).
                                 if (up != null &&
                                     isPressWithoutDrag(
                                         downPosition = down.position,
                                         upPosition = up.position,
                                         touchSlopPx = touchSlopPx,
                                     ) &&
-                                    onCategoryClick != null
+                                    onCategorySlotClick != null
                                 ) {
-                                    onCategoryClick(categoryClickCategory(categoryKey, categoryDisplayNames))
+                                    onCategorySlotClick(categoryClickCategory(categoryKey, categoryDisplayNames))
                                 }
                             }
                         },

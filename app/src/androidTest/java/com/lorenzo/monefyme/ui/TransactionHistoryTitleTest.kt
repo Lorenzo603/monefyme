@@ -77,6 +77,7 @@ class TransactionHistoryTitleTest {
                 viewModel = viewModel,
                 onOpenRestore = { },
                 onAddTransaction = { },
+                onAddExpenseForCategory = { },
             )
         }
         composeTestRule.waitForIdle()

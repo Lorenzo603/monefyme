@@ -9,9 +9,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Covers clicking a section of the pie chart: a tap on one of the colored ring sections (or on that
- * category's icon slot) reports the clicked category through ExpensePieChart's `onCategoryClick`, so
- * HomeScreen can open the transaction history with that category's accordion already expanded.
+ * Covers clicking a section of the pie chart: a tap on one of the colored ring sections reports the
+ * clicked category through ExpensePieChart's `onCategoryClick`, so HomeScreen can open the
+ * transaction history with that category's accordion already expanded. A tap on a category's icon
+ * slot instead reports through `onCategorySlotClick`, which HomeScreen uses to open the add-expense
+ * flow with that category preselected (holding the press still shows the category info in the centre,
+ * covered by ExpensePieChartHighlightTest).
  *
  * Which section a tap landed on is pure geometry and is asserted directly below. The Compose gesture
  * wiring needs an emulator, so it is asserted by reading the source file (the pattern used by
@@ -223,6 +226,16 @@ class ExpensePieChartClickTest {
     }
 
     @Test
+    fun composableAcceptsACategorySlotClickCallback() {
+        val signature = pieChartSource.substringAfter("fun ExpensePieChart(").substringBefore("\n) {")
+        assertTrue(
+            "ExpensePieChart must expose an onCategorySlotClick callback so clicking an icon slot can " +
+                "open the add-expense flow for that category:\n$signature",
+            signature.contains("onCategorySlotClick: ((String) -> Unit)?"),
+        )
+    }
+
+    @Test
     fun ringSectionsAreKeptSoATapCanBeMatchedToTheDrawnSection() {
         val body = expensePieChartBody()
         assertTrue(
@@ -245,32 +258,66 @@ class ExpensePieChartClickTest {
     }
 
     @Test
-    fun tappingASectionOrItsIconReportsTheClickedCategory() {
+    fun tappingASectionReportsTheClickedCategoryForTheHistoryExpansion() {
         val body = expensePieChartBody()
         val ringGesture = body.substringAfter(".testTag(\"pie_chart_arc_area\")").substringBefore("val arcTopLeft =")
+        assertTrue(
+            "A completed tap on a ring section must report the clicked category through " +
+                "onCategoryClick:\n$ringGesture",
+            ringGesture.contains("onCategoryClick(categoryClickCategory("),
+        )
+        assertTrue(
+            "Only a tap that ended in a release counts as a click, so a month-pager swipe does " +
+                "not navigate:\n$ringGesture",
+            ringGesture.contains("if (up != null"),
+        )
+        assertTrue(
+            "A press that travelled over the chart (the month pager swipe) must not be reported " +
+                "as a click on a section:\n$ringGesture",
+            ringGesture.contains("isPressWithoutDrag("),
+        )
+        assertTrue(
+            "The release must be awaited before the click is reported:\n$ringGesture",
+            ringGesture.indexOf("waitForUpOrCancellation") < ringGesture.indexOf("if (up != null"),
+        )
+    }
+
+    @Test
+    fun clickingACategoryIconSlotReportsItThroughTheSlotClickCallback() {
+        val body = expensePieChartBody()
         val iconGesture = body.substringAfter(".testTag(\"pie_chart_icon_")
             .substringAfter("awaitEachGesture {")
             .substringBefore("\n                            }")
-        for (gesture in listOf(ringGesture, iconGesture)) {
-            assertTrue(
-                "A completed tap must report the clicked category through onCategoryClick:\n$gesture",
-                gesture.contains("onCategoryClick(categoryClickCategory("),
-            )
-            assertTrue(
-                "Only a tap that ended in a release counts as a click, so a month-pager swipe does " +
-                    "not navigate:\n$gesture",
-                gesture.contains("if (up != null"),
-            )
-            assertTrue(
-                "A press that travelled over the chart (the month pager swipe) must not be reported " +
-                    "as a click on a section:\n$gesture",
-                gesture.contains("isPressWithoutDrag("),
-            )
-            assertTrue(
-                "The release must be awaited before the click is reported:\n$gesture",
-                gesture.indexOf("waitForUpOrCancellation") < gesture.indexOf("if (up != null"),
-            )
-        }
+        assertTrue(
+            "A completed click on a category icon slot must report the category through " +
+                "onCategorySlotClick, which opens the add-expense flow with it preselected:\n$iconGesture",
+            iconGesture.contains("onCategorySlotClick(categoryClickCategory("),
+        )
+        assertFalse(
+            "Clicking an icon slot must open the add-expense flow, not the category's transaction " +
+                "history accordion:\n$iconGesture",
+            iconGesture.contains("onCategoryClick("),
+        )
+        assertTrue(
+            "Only a click that ended in a release counts, so a month-pager swipe does not open the " +
+                "add-expense flow:\n$iconGesture",
+            iconGesture.contains("if (up != null"),
+        )
+        assertTrue(
+            "A press that travelled over the chart (the month pager swipe) must not be reported " +
+                "as a click on the icon slot:\n$iconGesture",
+            iconGesture.contains("isPressWithoutDrag("),
+        )
+        assertTrue(
+            "The release must be awaited before the click is reported:\n$iconGesture",
+            iconGesture.indexOf("waitForUpOrCancellation") < iconGesture.indexOf("if (up != null"),
+        )
+        assertTrue(
+            "Holding the press must still highlight the slot and show the category info in the " +
+                "centre:\n$iconGesture",
+            iconGesture.contains("pressedCategoryKey = pressedCategoryAfterPress(") &&
+                iconGesture.contains("pressedCategoryKey = pressedCategoryAfterRelease("),
+        )
     }
 
     @Test

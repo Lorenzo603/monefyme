@@ -25,11 +25,13 @@ import org.junit.Test
 /**
  * End-to-end coverage for clicking a section of the pie chart.
  *
- * A tap on one of the chart's colored ring sections - or on that category's icon slot - reports the
- * clicked category through ExpensePieChart.onCategoryClick, which is what HomeScreen uses to open the
- * transaction history with that category already expanded (the accordion opening itself is covered by
- * TransactionHistoryAccordionTest). A tap in the chart's hole, outside the ring, or a press that turns
- * into a swipe (the month pager drag) reports nothing.
+ * A tap on one of the chart's colored ring sections reports the clicked category through
+ * ExpensePieChart.onCategoryClick, which is what HomeScreen uses to open the transaction history with
+ * that category already expanded (the accordion opening itself is covered by
+ * TransactionHistoryAccordionTest). A click on a category's icon slot instead reports through
+ * ExpensePieChart.onCategorySlotClick, which HomeScreen uses to open the add-expense flow with that
+ * category preselected (covered by AddExpensePreselectedCategoryUiTest). A tap in the chart's hole,
+ * outside the ring, or a press that turns into a swipe (the month pager drag) reports nothing.
  *
  * The chart is rendered on its own so the section angles are known: Food (60% of the spending) sweeps
  * 0..216 degrees and Transport the remaining 216..360 degrees, both measured from 3 o'clock clockwise
@@ -45,9 +47,11 @@ class PieChartSectionClickUiTest {
     val composeTestRule = createComposeRule()
 
     private val clickedCategories = Collections.synchronizedList(mutableListOf<String>())
+    private val clickedSlotCategories = Collections.synchronizedList(mutableListOf<String>())
 
     private fun showChart() {
         clickedCategories.clear()
+        clickedSlotCategories.clear()
         composeTestRule.setContent {
             ExpensePieChart(
                 slices = listOf(
@@ -58,6 +62,7 @@ class PieChartSectionClickUiTest {
                 expenseCents = 10_000L,
                 modifier = Modifier.padding(12.dp),
                 onCategoryClick = { clickedCategories += it },
+                onCategorySlotClick = { clickedSlotCategories += it },
             )
         }
         composeTestRule.waitForIdle()
@@ -147,13 +152,21 @@ class PieChartSectionClickUiTest {
     }
 
     @Test
-    fun tappingACategoryIconReportsItsCategoryToo() {
+    fun clickingACategoryIconSlotOpensAddExpenseForThatCategory() {
         showChart()
 
         composeTestRule.onNodeWithContentDescription("food").performClick()
         composeTestRule.waitForIdle()
 
-        assertEquals(listOf("Food"), clickedCategories)
+        assertEquals(
+            "Clicking the Food icon slot must open the add-expense flow with Food preselected.",
+            listOf("Food"),
+            clickedSlotCategories,
+        )
+        assertTrue(
+            "An icon slot click must not expand the transaction history: clickedCategories=$clickedCategories",
+            clickedCategories.isEmpty(),
+        )
     }
 
     @Test

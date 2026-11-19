@@ -119,6 +119,26 @@ fun AddTransactionScreen(
     val screenTitle = if (type == TransactionType.EXPENSE) "New expense" else "New income"
     var todayToUse by rememberSaveable { mutableStateOf(today) }
 
+    // Category preselected when this screen was opened by clicking a pie chart category icon slot
+    // (MainViewModel.requestAddExpense). Consumed once so a later open starts without a category;
+    // rememberSaveable keeps the preselection across configuration changes.
+    var preselectedCategory by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        viewModel.consumeAddExpenseCategoryRequest()?.let { preselectedCategory = it }
+    }
+
+    // The calculator's category button validates the amount first; [then] only runs when the amount
+    // is a positive number, otherwise the amount flashes red.
+    val withValidAmount: (() -> Unit) -> Unit = { then ->
+        val normalizedAmount = amountText.removeSuffix(".").removePrefix("-")
+        val amountValue = normalizedAmount.toBigDecimalOrNull()
+        if (amountValue == null || amountValue.compareTo(BigDecimal.ZERO) == 0) {
+            amountFlashError = true
+        } else {
+            then()
+        }
+    }
+
     val persistTransaction: (String) -> Unit = { category ->
         scope.launch {
             val normalizedAmount = amountText.removeSuffix(".").removePrefix("-")
@@ -289,6 +309,22 @@ fun AddTransactionScreen(
             )
         }
 
+        val chosenCategory = preselectedCategory
+        if (chosenCategory != null && !showCategoryPicker) {
+            // The pie chart icon slot already chose the category: show it above the pad, whose
+            // bottom button adds the transaction with this category instead of opening the picker.
+            Text(
+                text = "Category: $chosenCategory",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF2D3336),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp, start = 20.dp, end = 20.dp)
+                    .testTag("add_transaction_selected_category"),
+            )
+        }
+
         if (showCategoryPicker) {
             CategoryPicker(
                 categories = pickerCategories,
@@ -303,6 +339,7 @@ fun AddTransactionScreen(
                 modifier = Modifier
                     .weight(1f)
                     .padding(top = 16.dp),
+                chosenCategory = chosenCategory,
                 onKeyPress = { key ->
                     val current = amountText
                     when (key) {
@@ -351,12 +388,14 @@ fun AddTransactionScreen(
                     }
                 },
                 onChooseCategory = {
-                    val normalizedAmount = amountText.removeSuffix(".").removePrefix("-")
-                    val amountValue = normalizedAmount.toBigDecimalOrNull()
-                    if (amountValue == null || amountValue.compareTo(BigDecimal.ZERO) == 0) {
-                        amountFlashError = true
-                    } else {
+                    withValidAmount {
                         showCategoryPicker = true
+                    }
+                },
+                onConfirmCategory = {
+                    // The category came from the clicked pie chart icon slot: add the expense with it.
+                    withValidAmount {
+                        chosenCategory?.let { persistTransaction(it) }
                     }
                 },
             )
@@ -385,8 +424,12 @@ fun AddTransactionScreen(
 @Composable
 private fun CalculatorPad(
     modifier: Modifier = Modifier,
+    // Category the pie chart icon slot preselected; when set, the bottom button adds the
+    // transaction with this category instead of opening the category picker.
+    chosenCategory: String? = null,
     onKeyPress: (Char) -> Unit,
     onChooseCategory: () -> Unit,
+    onConfirmCategory: () -> Unit = onChooseCategory,
 ) {
     val keyRows = listOf(
         listOf('1', '2', '3', '+'),
@@ -430,9 +473,11 @@ private fun CalculatorPad(
             }
         }
 
+        val preselected = chosenCategory != null
         OutlinedButton(
-            onClick = onChooseCategory,
+            onClick = { if (preselected) onConfirmCategory() else onChooseCategory() },
             modifier = Modifier
+                .testTag(if (preselected) "add_transaction_confirm_button" else "add_transaction_choose_category_button")
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .padding(top = 8.dp, bottom = 8.dp)
@@ -445,7 +490,7 @@ private fun CalculatorPad(
             ),
         ) {
             Text(
-                text = "CHOOSE CATEGORY",
+                text = if (preselected) "ADD \"$chosenCategory\"" else "CHOOSE CATEGORY",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Normal,
             )

@@ -58,6 +58,12 @@ fun BudgetApp(viewModel: MainViewModel) {
                             navController.navigate(Routes.AddIncome)
                         }
                     },
+                    // Clicking a pie chart category icon slot opens the add-expense screen with that
+                    // category preselected; the screen picks the category up from the ViewModel.
+                    onAddExpenseForCategory = { categoryName ->
+                        viewModel.requestAddExpense(categoryName)
+                        navController.navigate(Routes.AddExpense)
+                    },
                 )
             }
             composable(Routes.Restore) {
