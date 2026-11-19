@@ -7,11 +7,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,8 +31,6 @@ import androidx.compose.material.icons.outlined.Diversity3
 import androidx.compose.material.icons.outlined.LocalAtm
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.WorkOutline
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -43,7 +39,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
@@ -52,7 +47,6 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -73,12 +67,12 @@ import com.lorenzo.monefyme.ui.category.DefaultCategories
 import com.lorenzo.monefyme.ui.category.resolveColor
 import com.lorenzo.monefyme.ui.category.resolveIcon
 import com.lorenzo.monefyme.ui.component.AddCategoryDialog
+import com.lorenzo.monefyme.ui.component.DatePickerModal
 import com.lorenzo.monefyme.ui.util.currencyAnnotatedString
 import com.lorenzo.monefyme.ui.util.formatDate
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
 import java.math.BigDecimal
 import java.time.LocalDate
-import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
@@ -582,175 +576,4 @@ private fun applyOperator(left: BigDecimal, right: BigDecimal, op: Char): BigDec
         '/' -> if (right.compareTo(BigDecimal.ZERO) == 0) left else left.divide(right, 2, java.math.RoundingMode.HALF_UP)
         else -> right
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DatePickerModal(
-    currentDate: LocalDate,
-    onDateSelected: (LocalDate) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var selectedYear by rememberSaveable { mutableIntStateOf(currentDate.year) }
-    var selectedMonth by rememberSaveable { mutableIntStateOf(currentDate.monthValue - 1) }
-    var selectedDay by rememberSaveable { mutableIntStateOf(currentDate.dayOfMonth) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Select date",
-                style = MaterialTheme.typography.titleLarge,
-                color = Color(0xFF2D3336),
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier.padding(vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                // Month selector
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        text = YearMonth
-                            .of(selectedYear, selectedMonth + 1)
-                            .month
-                            .getDisplayName(java.time.format.TextStyle.FULL, Locale.getDefault()),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color(0xFF2D3336),
-                    )
-                    Text(
-                        text = "  ",
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Text(
-                        text = selectedYear.toString(),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color(0xFF2D3336),
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Day of week headers
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                ) {
-                    listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
-                        Text(
-                            text = day,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF7DC8A5),
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Calendar grid
-                val daysInMonth = YearMonth.of(selectedYear, selectedMonth + 1).lengthOfMonth()
-                val firstDayOfWeek = YearMonth.of(selectedYear, selectedMonth + 1).atDay(1).dayOfWeek.value
-                val adjustedFirstDay = (firstDayOfWeek + 6) % 7
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(7),
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    // Empty cells for days before the first day of the month
-                    items(adjustedFirstDay) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(
-                                    color = Color.Transparent,
-                                    shape = RoundedCornerShape(8.dp),
-                                )
-                        )
-                    }
-
-                    // Days of the month
-                    items((1..daysInMonth).toList()) { day ->
-                        val isSelected = day == selectedDay
-                        val isToday = day == LocalDate.now().dayOfMonth &&
-                            selectedMonth == LocalDate.now().monthValue - 1 &&
-                            selectedYear == LocalDate.now().year
-
-                        Button(
-                            onClick = {
-                                selectedDay = day
-                                onDateSelected(
-                                    LocalDate.of(selectedYear, selectedMonth + 1, day),
-                                )
-                            },
-                            modifier = Modifier
-                                .size(40.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSelected) Color(0xFF74C792) else Color(0xFFEAF8F2),
-                                contentColor = if (isSelected) Color.White else Color(0xFF2D3336),
-                            ),
-                            contentPadding = PaddingValues(0.dp),
-                            enabled = true,
-                        ) {
-                            Text(
-                                text = day.toString(),
-                                color = if (isSelected) Color.White else Color(0xFF2D3336),
-                                fontWeight = if (isToday) FontWeight.SemiBold else FontWeight.Normal,
-                                fontSize = 14.sp,
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Navigation buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            val newYearMonth = YearMonth.of(selectedYear, selectedMonth + 1).minusMonths(1)
-                            selectedYear = newYearMonth.year
-                            selectedMonth = newYearMonth.monthValue - 1
-                            selectedDay = selectedDay.coerceAtMost(newYearMonth.lengthOfMonth())
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                    ) {
-                        Text("<")
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            val newYearMonth = YearMonth.of(selectedYear, selectedMonth + 1).plusMonths(1)
-                            selectedYear = newYearMonth.year
-                            selectedMonth = newYearMonth.monthValue - 1
-                            selectedDay = selectedDay.coerceAtMost(newYearMonth.lengthOfMonth())
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                    ) {
-                        Text(">")
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = Color(0xFF74C792),
-                ),
-            ) {
-                Text("Cancel")
-            }
-        },
-        containerColor = Color(0xFFEAF8F2),
-        shape = RoundedCornerShape(16.dp),
-    )
 }
