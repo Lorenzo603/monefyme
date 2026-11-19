@@ -18,10 +18,10 @@ Usage (from the repository root):
     python .harness-loop/runner.py --only tech-logos --model sonnet:high
     python .harness-loop/runner.py --only tech-logos --no-color   # plain live output
 
-    python .harness-loop/runner.py --model claude-haiku-4.5 --thinking high
-    python .harness-loop/runner.py --model unsloth/Qwen3.5-35B-A3B-UD-Q4_K_L
-    python .harness-loop/runner.py --model Qwen3.8-Flash-Next-IQ3-XXS
-    python .harness-loop/runner.py --model Qwen3.8-FN-UD-IQ3_XXS
+    python .harness-loop/runner.py --model claude-haiku-4.5 --thinking high   # github copilot
+    python .harness-loop/runner.py --model unsloth/Qwen3.5-35B-A3B-UD-Q4_K_L   # llama.cpp
+    python .harness-loop/runner.py --model Qwen3.8-Flash-Next-IQ3-XXS   # strata
+    python .harness-loop/runner.py --model Qwen3.8-FN-UD-IQ3_XXS   # basalt
 
 """
 
