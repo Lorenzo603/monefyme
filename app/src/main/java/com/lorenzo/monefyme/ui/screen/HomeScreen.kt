@@ -39,6 +39,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
@@ -504,12 +506,23 @@ private fun BalanceAndHistorySheet(
                             .size(60.dp)
                             .testTag("grouping_toggle_button"),
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Menu,
-                            contentDescription = "Toggle grouping",
-                            tint = Color(0xFF7CC8A4),
-                            modifier = Modifier.size(40.dp),
-                        )
+                        // Show an icon for the active grouping mode so the user can tell
+                        // grouped-by-category from grouped-by-date at a glance.
+                        if (groupByCategory) {
+                            Icon(
+                                imageVector = Icons.Outlined.Category,
+                                contentDescription = "Grouped by category. Tap to group by date",
+                                tint = Color(0xFF7CC8A4),
+                                modifier = Modifier.size(40.dp),
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Outlined.CalendarMonth,
+                                contentDescription = "Grouped by date. Tap to group by category",
+                                tint = Color(0xFF7CC8A4),
+                                modifier = Modifier.size(40.dp),
+                            )
+                        }
                     }
                 } else {
                     IconButton(

@@ -118,6 +118,86 @@ class HomeScreenGroupingToggleTest {
     }
 
     @Test
+    fun groupingToggleButtonShowsStateSpecificIconsInsteadOfHamburger() {
+        val source = readSource("app/src/main/java/com/lorenzo/monefyme/ui/screen/HomeScreen.kt")
+
+        val balanceAndHistorySheetStart = source.indexOf("private fun BalanceAndHistorySheet(")
+        assertTrue("BalanceAndHistorySheet function not found", balanceAndHistorySheetStart >= 0)
+
+        val balanceAndHistorySheetEnd = source.indexOf("private fun ", balanceAndHistorySheetStart + 1)
+        val balanceAndHistorySheetBody = if (balanceAndHistorySheetEnd > 0) {
+            source.substring(balanceAndHistorySheetStart, balanceAndHistorySheetEnd)
+        } else {
+            source.substring(balanceAndHistorySheetStart)
+        }
+
+        // Extract the grouping toggle IconButton block (from its testTag to the closing of the button).
+        val toggleStart = balanceAndHistorySheetBody.indexOf("toggleGroupByCategory()")
+        assertTrue("Grouping toggle IconButton not found", toggleStart >= 0)
+        val balanceRightAnchor = balanceAndHistorySheetBody.indexOf("balance_history_right", toggleStart)
+        val toggleBlock = balanceAndHistorySheetBody.substring(
+            toggleStart,
+            if (balanceRightAnchor > 0) balanceRightAnchor
+            else minOf(toggleStart + 1500, balanceAndHistorySheetBody.length),
+        )
+
+        // The toggle must no longer reuse the hamburger Menu icon.
+        assertFalse(
+            "The grouping toggle must not use the hamburger Icons.Outlined.Menu icon.",
+            toggleBlock.contains("Icons.Outlined.Menu"),
+        )
+
+        // It must show a distinct icon per grouping state: category and calendar/date icons.
+        assertTrue(
+            "The grouping toggle should show a category icon when grouped by category.",
+            toggleBlock.contains("Icons.Outlined.Category"),
+        )
+        assertTrue(
+            "The grouping toggle should show a calendar icon when grouped by date.",
+            toggleBlock.contains("Icons.Outlined.CalendarMonth"),
+        )
+
+        // The icon must be chosen based on the groupByCategory state.
+        assertTrue(
+            "The icon selection should branch on the groupByCategory state.",
+            toggleBlock.contains("if (groupByCategory)"),
+        )
+    }
+
+    @Test
+    fun groupingToggleContentDescribesActiveGroupingMode() {
+        val source = readSource("app/src/main/java/com/lorenzo/monefyme/ui/screen/HomeScreen.kt")
+
+        val balanceAndHistorySheetStart = source.indexOf("private fun BalanceAndHistorySheet(")
+        assertTrue("BalanceAndHistorySheet function not found", balanceAndHistorySheetStart >= 0)
+
+        val balanceAndHistorySheetEnd = source.indexOf("private fun ", balanceAndHistorySheetStart + 1)
+        val balanceAndHistorySheetBody = if (balanceAndHistorySheetEnd > 0) {
+            source.substring(balanceAndHistorySheetStart, balanceAndHistorySheetEnd)
+        } else {
+            source.substring(balanceAndHistorySheetStart)
+        }
+
+        val toggleStart = balanceAndHistorySheetBody.indexOf("toggleGroupByCategory()")
+        assertTrue("Grouping toggle IconButton not found", toggleStart >= 0)
+        val balanceRightAnchor = balanceAndHistorySheetBody.indexOf("balance_history_right", toggleStart)
+        val toggleBlock = balanceAndHistorySheetBody.substring(
+            toggleStart,
+            if (balanceRightAnchor > 0) balanceRightAnchor
+            else minOf(toggleStart + 1500, balanceAndHistorySheetBody.length),
+        )
+
+        assertTrue(
+            "The category-state contentDescription should state that grouping is by category.",
+            toggleBlock.contains("Grouped by category"),
+        )
+        assertTrue(
+            "The date-state contentDescription should state that grouping is by date.",
+            toggleBlock.contains("Grouped by date"),
+        )
+    }
+
+    @Test
     fun rightAnchorShowsHamburgerIconWhenHistoryIsClosed() {
         val source = readSource("app/src/main/java/com/lorenzo/monefyme/ui/screen/HomeScreen.kt")
 
