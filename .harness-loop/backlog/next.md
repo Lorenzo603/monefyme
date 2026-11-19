@@ -12,6 +12,7 @@ depends_on: nothing
 
 Clicking the category icon slot now takes to add expenses for that category
 
+transaction history -> toggle button icon fix
 
 Improve date picker:
 - smaller "select date" title size
