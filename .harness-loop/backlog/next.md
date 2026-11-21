@@ -12,3 +12,5 @@ depends_on: nothing
 improve graphics of groupings by category and date in transaction history.
 
 improve graphics of date picker in add transactions
+
+
