@@ -25,4 +25,4 @@ it when running inside the loop.
   of the test paths).
 - `./gradlew connectedDebugAndroidTest` needs a running emulator, so it is kept out of the
   harness `verify_commands`; run it manually in an unlocked session or when a task explicitly
-  asks for it.
+  asks for it. It takes a long time to run, about 2 minutes, so run it sparingly.

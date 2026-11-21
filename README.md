@@ -70,7 +70,7 @@ To restore your historical file:
 
 Suggested commands:
 - `./gradlew testDebugUnitTest`
-- `./gradlew connectedDebugAndroidTest` (requires running emulator)
+- `./gradlew connectedDebugAndroidTest` (requires running emulator. It takes a long time to run, about 2 minutes, so run it sparingly)
 
 # Icons
 https://fonts.google.com/icons?icon.platform=android&icon.set=Material+Icons
