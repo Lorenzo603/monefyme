@@ -2,6 +2,7 @@ package com.lorenzo.monefyme.ui
 
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -18,6 +19,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -76,11 +78,54 @@ class DatePickerModalUiTest {
         composeTestRule.onNodeWithTag("date_picker_title").assertIsDisplayed()
         composeTestRule.onNodeWithText("Select date").assertIsDisplayed()
         composeTestRule.onNodeWithTag("date_picker_header").assertIsDisplayed()
-        // Header shows the selected date (day and year present) and the manual-entry edit button.
+        // Header shows the selected date and the manual-entry edit button.
         composeTestRule.onNodeWithTag("date_picker_selected_date").assertIsDisplayed()
-        composeTestRule.onNodeWithText("1 October 2025", substring = true).assertIsDisplayed()
+        // Compact format: 3-letter month abbreviation, no weekday (was "Wednesday, 1 October 2025").
+        composeTestRule.onNodeWithTag("date_picker_selected_date")
+            .assertTextEquals("1 Oct 2025")
+        composeTestRule.onNodeWithText("1 October 2025").assertDoesNotExist()
         composeTestRule.onNodeWithTag("date_picker_edit_button").assertIsDisplayed()
         assertDropdownShows(YearMonth.of(2025, 10))
+    }
+
+    @Test
+    fun yearPickerSitsOnTheLeftWithBothMonthArrowsToItsRight() {
+        showPicker(LocalDate.of(2025, 10, 1))
+
+        val dropdownLeft = composeTestRule.onNodeWithTag("date_picker_month_year_dropdown")
+            .fetchSemanticsNode().boundsInRoot.left
+        val previousLeft = composeTestRule.onNodeWithTag("date_picker_previous_month")
+            .fetchSemanticsNode().boundsInRoot.left
+        val nextLeft = composeTestRule.onNodeWithTag("date_picker_next_month")
+            .fetchSemanticsNode().boundsInRoot.left
+
+        assertTrue(
+            "The year picker must sit left of the previous-month arrow (found " +
+                "dropdown=$dropdownLeft previous=$previousLeft)",
+            dropdownLeft < previousLeft,
+        )
+        assertTrue(
+            "The previous-month arrow must sit left of the next-month arrow (found " +
+                "previous=$previousLeft next=$nextLeft)",
+            previousLeft < nextLeft,
+        )
+    }
+
+    @Test
+    fun fullBleedHeaderSpansTheWholeDialogWidth() {
+        showPicker(LocalDate.of(2025, 10, 1))
+
+        val header = composeTestRule.onNodeWithTag("date_picker_header").fetchSemanticsNode()
+        val dialog = composeTestRule.onNodeWithTag("date_picker_calendar_pager").fetchSemanticsNode()
+        // The header may only differ from the dialog content width by the calendar's own insets:
+        // it spans the full modal window instead of being inset like padded dialog content.
+        val headerWidth = header.boundsInRoot.width
+        val contentWidth = dialog.boundsInRoot.width
+        assertTrue(
+            "The green header must span the whole modal window (header=$headerWidth " +
+                "content=$contentWidth)",
+            headerWidth > contentWidth,
+        )
     }
 
     @Test

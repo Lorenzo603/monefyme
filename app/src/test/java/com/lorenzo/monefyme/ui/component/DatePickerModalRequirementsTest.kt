@@ -50,7 +50,7 @@ class DatePickerModalRequirementsTest {
         val headerStart = pickerSource.indexOf("testTag(\"date_picker_header\")")
         assertTrue("The dialog must have a testable green header", headerStart >= 0)
 
-        val headerSection = pickerSource.substring(headerStart, headerStart + 1200)
+        val headerSection = pickerSource.substring(headerStart, headerStart + 1600)
         assertTrue(
             "The header Surface must be filled with the app green (0xFF74C792)",
             pickerSource.contains("color = dialogGreen") && pickerSource.contains("dialogGreen = Color(0xFF74C792)"),
@@ -156,8 +156,96 @@ class DatePickerModalRequirementsTest {
                 dropdownIndex in 0 until pagerIndex,
         )
         assertTrue(
-            "The previous button must sit left of the dropdown and the next button right of it",
-            previousIndex < dropdownIndex && nextIndex > dropdownIndex,
+            "The year picker must sit on the LEFT with both month arrows to its right on one row: " +
+                "[year picker] [previous month] [next month]",
+            dropdownIndex < previousIndex && previousIndex < nextIndex,
+        )
+    }
+
+    // --- Full-bleed green header, tighter corners, compact date format ---
+
+    @Test
+    fun headerIsFullBleedWithTightCornersAndCompactDateFormat() {
+        // The dialog lays its own content so the green header can span the whole modal window;
+        // AlertDialog would inset it with its fixed 24.dp content padding.
+        assertTrue(
+            "The picker must be a BasicAlertDialog so the header can be full-bleed",
+            pickerSource.contains("BasicAlertDialog("),
+        )
+
+        val headerTag = pickerSource.indexOf("testTag(\"date_picker_header\")")
+        assertTrue("The dialog must have a testable green header", headerTag >= 0)
+        val beforeHeader = pickerSource.substring((headerTag - 400).coerceAtLeast(0), headerTag)
+        assertTrue(
+            "The header Surface must fill the dialog width with no horizontal padding around it " +
+                "(full-bleed across the whole modal window)",
+            beforeHeader.contains(".fillMaxWidth()") && !beforeHeader.contains("padding(horizontal"),
+        )
+        assertTrue(
+            "Negative padding must not be used to fake the full-bleed header (Compose rejects it at runtime)",
+            !Regex("padding\\([^)]*\\(\\s*-").containsMatchIn(pickerSource),
+        )
+
+        val headerShape = Regex(
+            """testTag\("date_picker_header"\),\s*shape = RoundedCornerShape\((\d+)\.dp\)""",
+        ).find(pickerSource)
+        assertTrue("The header Surface must keep an explicit tight shape", headerShape != null)
+        assertTrue(
+            "The header corners must be clearly tighter than the old 12.dp (0-8.dp), " +
+                "found ${headerShape?.groupValues?.get(1)}.dp",
+            headerShape!!.groupValues[1].toInt() <= 8,
+        )
+
+        val dialogShape = Regex("private val dialogShape = RoundedCornerShape\\((\\d+)\\.dp\\)").find(pickerSource)
+        assertTrue("The dialog corner radius must be a shared constant", dialogShape != null)
+        assertTrue(
+            "The dialog corners must be clearly tighter than the old 16.dp (e.g. 8.dp), " +
+                "found ${dialogShape?.groupValues?.get(1)}.dp",
+            dialogShape!!.groupValues[1].toInt() in 1..8,
+        )
+        assertTrue(
+            "No dialog may keep the old wide 16.dp corners",
+            !pickerSource.contains("RoundedCornerShape(16.dp)"),
+        )
+
+        // Compact header date: no weekday, standard 3-letter month abbreviation (e.g. 21 Nov 2026).
+        assertTrue(
+            "The header date format must drop the weekday and abbreviate the month (d MMM yyyy)",
+            pickerSource.contains("DateTimeFormatter.ofPattern(\"d MMM yyyy\""),
+        )
+        assertTrue(
+            "The old format with the day of the week and full month name must be gone",
+            !pickerSource.contains("EEEE") && !pickerSource.contains("MMMM"),
+        )
+    }
+
+    // --- Round selected day, no background on the other days ---
+
+    @Test
+    fun selectedDayIsAFilledCircleAndUnselectedDaysHaveNoBackground() {
+        val dayTagStart = pickerSource.indexOf(".testTag(\"date_picker_day_")
+        assertTrue("Each day must be a testable day button", dayTagStart >= 0)
+        val buttonStart = pickerSource.lastIndexOf("Button(", dayTagStart)
+        val dayButtonBlock = pickerSource.substring(buttonStart, dayTagStart + 700)
+        assertTrue(
+            "The day highlight must be a full circle, not an elongated rounded rectangle",
+            dayButtonBlock.contains("shape = RoundedCornerShape(percent = 50)"),
+        )
+        assertTrue(
+            "The day button must be square so the circle highlight stays round",
+            dayButtonBlock.contains(".size(DayCellHeight)"),
+        )
+        assertTrue(
+            "Non-selected days must render with no filled background",
+            dayButtonBlock.contains("if (isSelected) dialogGreen else Color.Transparent"),
+        )
+        assertTrue(
+            "The old filled background for non-selected days must be gone",
+            !pickerSource.contains("else dayCellBackground"),
+        )
+        assertTrue(
+            "The old 10.dp rounded-rectangle day cells must be gone",
+            !pickerSource.contains("RoundedCornerShape(10.dp)"),
         )
     }
 
@@ -183,8 +271,9 @@ class DatePickerModalRequirementsTest {
             dayButtonStart,
         )
         assertTrue(
-            "Day buttons must fill the full grid column width and the shared day cell height",
-            dayButtonBlock.contains(".fillMaxWidth()") && dayButtonBlock.contains(".height(DayCellHeight)"),
+            "Day buttons must be square (shared day cell height on both axes) so the round " +
+                "selected highlight is a perfect circle",
+            dayButtonBlock.contains(".size(DayCellHeight)"),
         )
     }
 

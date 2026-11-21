@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -74,11 +75,15 @@ private val CalendarPagerHeight = 330.dp
 
 private val dialogGreen = Color(0xFF74C792)
 private val dialogBackground = Color(0xFFEAF8F2)
+
+// Tighter dialog corners than the old 16.dp; the full-bleed header inherits them from the clip.
+private val dialogShape = RoundedCornerShape(8.dp)
 private val dayCellBackground = Color(0xFFD9F2E6)
 private val onDialogText = Color(0xFF2D3336)
 
+// No weekday and a 3-letter month abbreviation, e.g. "21 Nov 2026".
 private val pickerHeaderFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.getDefault())
+    DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
 
 // Weekday column headers, matching the Monday-first grid the calendar pages render.
 private val weekdayLabels = listOf("M", "T", "W", "T", "F", "S", "S")
@@ -128,77 +133,78 @@ fun DatePickerModal(
         }
     }
 
-    AlertDialog(
+    // BasicAlertDialog instead of AlertDialog: the Material dialog hard-codes 24.dp of inner
+    // content padding, which would inset the green header from the dialog edges. Here the
+    // content lays itself out so the header can span the whole modal window.
+    BasicAlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            // Smaller title than a regular dialog heading.
-            Text(
-                text = "Select date",
-                modifier = Modifier.testTag("date_picker_title"),
-                style = MaterialTheme.typography.titleMedium,
-                color = onDialogText,
-            )
-        },
-        text = {
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = dialogShape,
+            color = dialogBackground,
+        ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                // Green header: selected date big and centered, with the manual-entry edit button.
+                // Green header spanning the whole modal window: no side insets around it, the
+                // dialog's rounded corners clip its top edge. Selected date big and centered,
+                // with the manual-entry edit button on the right.
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("date_picker_header"),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(0.dp),
                     color = dialogGreen,
                 ) {
-                    Box(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 20.dp, end = 6.dp, top = 14.dp, bottom = 12.dp),
+                    ) {
+                        // Smaller title than a regular dialog heading, at the header's top-left.
                         Text(
-                            text = selectedDate.format(pickerHeaderFormatter),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 52.dp, vertical = 12.dp)
-                                .testTag("date_picker_selected_date"),
+                            text = "Select date",
+                            modifier = Modifier.testTag("date_picker_title"),
+                            style = MaterialTheme.typography.titleMedium,
                             color = Color.White,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
                         )
-                        IconButton(
-                            onClick = { showManualEntry = true },
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .testTag("date_picker_edit_button"),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Edit,
-                                contentDescription = "Enter date manually",
-                                tint = Color.White,
+                        Box(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                            Text(
+                                text = selectedDate.format(pickerHeaderFormatter),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 44.dp)
+                                    .testTag("date_picker_selected_date"),
+                                color = Color.White,
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
                             )
+                            IconButton(
+                                onClick = { showManualEntry = true },
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .testTag("date_picker_edit_button"),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Edit,
+                                    contentDescription = "Enter date manually",
+                                    tint = Color.White,
+                                )
+                            }
                         }
                     }
                 }
 
-                // Month/year dropdown with the prev/next month buttons moved to its sides.
+                // Year picker on the left with both month arrows to its right on one row:
+                // [year picker] [previous month] [next month].
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 10.dp),
+                        .padding(start = 24.dp, end = 20.dp, top = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(
-                        onClick = { jumpToMonth(shiftMonth(visibleMonth, -1)) },
-                        modifier = Modifier.testTag("date_picker_previous_month"),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.ChevronLeft,
-                            contentDescription = "Previous month",
-                            tint = onDialogText,
-                        )
-                    }
-
                     Box(modifier = Modifier.weight(1f)) {
                         TextButton(
                             onClick = { showYearMenu = true },
@@ -236,6 +242,17 @@ fun DatePickerModal(
                     }
 
                     IconButton(
+                        onClick = { jumpToMonth(shiftMonth(visibleMonth, -1)) },
+                        modifier = Modifier.testTag("date_picker_previous_month"),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.ChevronLeft,
+                            contentDescription = "Previous month",
+                            tint = onDialogText,
+                        )
+                    }
+
+                    IconButton(
                         onClick = { jumpToMonth(shiftMonth(visibleMonth, 1)) },
                         modifier = Modifier.testTag("date_picker_next_month"),
                     ) {
@@ -253,6 +270,7 @@ fun DatePickerModal(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(CalendarPagerHeight)
+                        .padding(start = 24.dp, end = 24.dp, top = 8.dp)
                         .testTag("date_picker_calendar_pager"),
                 ) { page ->
                     CalendarMonthPage(
@@ -266,19 +284,25 @@ fun DatePickerModal(
                         },
                     )
                 }
+
+                // Cancel button, green text at the bottom right of the dialog.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(top = 4.dp, bottom = 14.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.textButtonColors(contentColor = dialogGreen),
+                    ) {
+                        Text("Cancel")
+                    }
+                }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(contentColor = dialogGreen),
-            ) {
-                Text("Cancel")
-            }
-        },
-        containerColor = dialogBackground,
-        shape = RoundedCornerShape(16.dp),
-    )
+        }
+    }
 
     if (showManualEntry) {
         ManualDateEntryDialog(
@@ -391,12 +415,12 @@ private fun CalendarMonthPage(
                             Button(
                                 onClick = { onDaySelected(day) },
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(DayCellHeight)
+                                    .size(DayCellHeight)
                                     .testTag("date_picker_day_${month.year}_${month.monthValue}_$day"),
-                                shape = RoundedCornerShape(10.dp),
+                                // Selected day: a filled green circle. All others: no fill at all.
+                                shape = RoundedCornerShape(percent = 50),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isSelected) dialogGreen else dayCellBackground,
+                                    containerColor = if (isSelected) dialogGreen else Color.Transparent,
                                     contentColor = onDialogText,
                                 ),
                                 contentPadding = PaddingValues(0.dp),
@@ -520,7 +544,7 @@ private fun ManualDateEntryDialog(
             }
         },
         containerColor = dialogBackground,
-        shape = RoundedCornerShape(16.dp),
+        shape = dialogShape,
     )
 }
 
