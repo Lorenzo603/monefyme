@@ -4,16 +4,24 @@ Point an LLM coding agent at a folder of Markdown task files. A Python runner pi
 next ready task, gives it to a **fresh Pi session**, records the outcome in the task file,
 and moves on to the next task.
 
+This repository is the **project-agnostic harness**. Everything project-specific lives in a
+single `config.json` that each target repository writes for itself, so the harness can be
+dropped into any repo unchanged. See [Integrate into a project](#integrate-into-a-project).
+
 ```
-.harness-loop/
-├── runner.py          # the loop (stdlib only, Python 3.9+)
-├── selftest.py        # tests for the loop itself (fake pi, throwaway repo)
-├── config.json        # defaults for the run
-├── rules.md           # appended to every session as system prompt
-├── tasks/             # one .md file per task, frontmatter = state
-├── archived-tasks/    # completed tasks, moved here automatically by the runner
-├── sessions/          # Pi session files (gitignored)
-└── logs/              # full pi stdout per attempt (gitignored)
+harness-loop/              # this repo; copied into a target repo as .harness-loop/
+├── runner.py              # the loop (stdlib only, Python 3.9+)
+├── selftest.py            # tests for the loop itself (fake pi, throwaway repo)
+├── config.example.json    # template: copy to config.json in the target repo and fill in
+├── rules.md               # appended to every session as system prompt (generic)
+├── integrate.ps1          # optional: copy this harness into a target repo (.ps1)
+├── integrate.sh           # optional: same for bash/zsh
+├── backlog/               # parking lot for future task files (sample-task.md included)
+├── task-assets/           # external assets for the tasks (images, files); folder committed, contents gitignored
+├── tasks/                 # one .md file per task, frontmatter = state
+├── archived-tasks/        # completed tasks, moved here automatically by the runner
+├── sessions/              # Pi session files (created per run, gitignored)
+└── logs/                  # full pi stdout per attempt (created per run, gitignored)
 ```
 
 Each loop is one `pi --print` process with its own session id, so no conversation
@@ -32,6 +40,54 @@ npm install -g @mariozechner/pi-coding-agent   # if you need it from npm
 ```
 
 Auth: `export ANTHROPIC_API_KEY=...` (or `pi` with no flag to pick up cached OAuth).
+
+## Integrate into a project
+
+The harness only cares about one thing: it must live in `.harness-loop/` **directly under
+your repository root**, because `runner.py` derives the repo root from its own location
+(`ROOT.parent`) and pins every Pi session and verify command to that root. Everything else is configuration.
+
+1. **Copy the harness in** — pick one:
+   ```powershell
+   # Windows: from the target repo root (gitignored runs/ dirs and stray config.json are left alone)
+   powershell -File C:\path\to\harness-loop\integrate.ps1
+   ```
+   ```bash
+   # macOS/Linux: same, from the target repo root
+   bash /path/to/harness-loop/integrate.sh
+   ```
+   Or do it by hand: copy `runner.py`, `selftest.py`, `rules.md`, `.gitignore`,
+   `config.example.json` and the `tasks/`, `archived-tasks/`, `backlog/`, `task-assets/`
+   directories into
+   `<repo>/.harness-loop/`. A `git subtree`/submodule of this repo mounted at `.harness-loop`
+   also works and lets you pull harness updates into every project with one command.
+
+2. **Create the project's config** — `copy .harness-loop\config.example.json .harness-loop\config.json`
+   (PowerShell: `Copy-Item`) and fill in the four project-specific keys:
+   `verify_commands` (your test command(s), run from the repo root), `source_globs`,
+   `test_globs` (what counts as production code / tests for the test-presence check), and
+   optionally `verify_env_script` (name of your env-setup script without extension).
+   Leave the rest at defaults; every key is optional and overridable by CLI flags.
+   Document the same test commands in the repo's `AGENTS.md`, which `rules.md` requires
+   every agent to read first.
+
+3. **Sanity-check, nothing changes**:
+   ```powershell
+   python .harness-loop\selftest.py               # the loop itself works (fake pi, throwaway repo)
+   python .harness-loop\runner.py --dry-run       # shows the exact pi calls it would make
+   python .harness-loop\runner.py --list          # task board (empty at first)
+   ```
+
+4. **Add work**: copy `backlog/sample-task.md` to `tasks/NN-slug.md`, fill in the task, run
+   `python .harness-loop\runner.py`. Triage idea files that are not ready yet in `backlog/`.
+   Task assets — reference images, mockups or other files from a task — go in
+   `task-assets/` (referenced as `@.harness-loop/task-assets/<file>`). The folder is committed
+   via a `.gitkeep` placeholder, but its contents are gitignored: assets are local-only
+   scratch material, never shareable via git.
+
+5. **Commit it** — commit `.harness-loop/` (including your `config.json`, which belongs with
+   the code, and any sample tasks). The folder's own `.gitignore` excludes the per-run
+   `sessions/`, `logs/` and `__pycache__/`, so the harness is versioned cleanly in every repo.
 
 ## Run
 
@@ -176,6 +232,8 @@ An attempt that reports `BLOCKED` is never retried — it waits for you.
 ```json
 "max_attempts": 3,
 "verify_commands": ["<this repo's test commands, run from the repo root>"],
+"commit": false,
+"push": false,
 "verify_timeout_seconds": 900,
 "verify_env_script": "<optional env-setup script, without extension>",
 "require_tests": true,
@@ -250,7 +308,7 @@ throwaway repo (its own git repo, a fake `pi`, a fake test command) and asserts 
 recorded. It never touches your tasks, sessions or logs:
 
 ```powershell
-python .harness-loop\selftest.py     # 9 scenarios, exit 0 when all pass
+python .harness-loop\selftest.py     # 13 scenarios, exit 0 when all pass
 ```
 
 | Scenario | Asserts |
@@ -264,6 +322,10 @@ python .harness-loop\selftest.py     # 9 scenarios, exit 0 when all pass
 | G | a frontmatter whose closing `---` an older runner dropped is read and repaired; `depends_on: nothing` is not a prerequisite |
 | H | live-view colours: one ANSI colour per action kind, `NO_COLOR`/`FORCE_COLOR`/`auto` rules, and a transcript with no escape codes |
 | I | a real runner run: `--color always` paints the console, `--no-color` and the piped default stay plain, `logs/` hold no escape codes |
+| J | `commit: true`: the harness stages and commits after a verified DONE |
+| K | commits off: HEAD unchanged after DONE |
+| L | `commit: true` on a FAILED task: nothing is committed |
+| M | `max_turns` ends a Pi session at a turn boundary and the task is retried like any failure |
 
 ## Notes
 
@@ -274,5 +336,8 @@ python .harness-loop\selftest.py     # 9 scenarios, exit 0 when all pass
 - Multiple runners at once share `sessions/`, and Pi 0.15 added an advisory lock per session
   file; keep one runner per worktree, or use `--limit 1` per task from a wrapper.
 - Parallelism across worktrees is a wrapper concern: fan out `--only <slug>` invocations.
-- No git operations are performed by the runner. The prompt also instructs the agent not to
-  commit or push; you review and commit between runs.
+- The model is told never to run git write commands; you review between runs. The runner
+  itself stays out of git too **unless** you opt in: `commit: true` (config or `--commit`)
+  makes the harness stage and commit the working tree *after* a task passes verification
+  (`--push` / `push: true` additionally pushes; it implies commit). Unverified work never
+  reaches git. With commit disabled (the default), you review and commit yourself.
