@@ -9,14 +9,17 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performGesture
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import com.lorenzo.monefyme.ui.component.DatePickerModal
+import com.lorenzo.monefyme.ui.util.YEAR_MENU_PAST_YEARS
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -70,6 +73,16 @@ class DatePickerModalUiTest {
     /** Day tags are month-scoped, so neighbouring pager pages never collide. */
     private fun dayNode(month: YearMonth, day: Int) =
         composeTestRule.onNodeWithTag("date_picker_day_${month.year}_${month.monthValue}_$day")
+
+    /** Index of [year] in the grid's yearOptions list for a picker showing [visibleYear]. */
+    private fun yearGridIndex(visibleYear: Int, year: Int): Int =
+        year - (visibleYear - YEAR_MENU_PAST_YEARS)
+
+    private fun openYearGrid() {
+        composeTestRule.onNodeWithTag("date_picker_month_year_dropdown").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("date_picker_year_menu").assertIsDisplayed()
+    }
 
     @Test
     fun dialogShowsSmallerTitleAndGreenHeaderWithTheSelectedDate() {
@@ -170,9 +183,12 @@ class DatePickerModalUiTest {
     fun dropdownLetsTheUserPickAYearToJumpTo() {
         showPicker(LocalDate.of(2025, 10, 1))
 
-        composeTestRule.onNodeWithTag("date_picker_month_year_dropdown").performClick()
+        openYearGrid()
+        // The grid opens with the applied year (2025) at its top row; years below it are
+        // reached by scrolling the grid up to their item index.
+        composeTestRule.onNodeWithTag("date_picker_year_menu")
+            .performScrollToIndex(yearGridIndex(2025, 2022))
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithTag("date_picker_year_menu").assertIsDisplayed()
         composeTestRule.onNodeWithTag("date_picker_year_2022").performClick()
         composeTestRule.waitForIdle()
 
@@ -183,19 +199,73 @@ class DatePickerModalUiTest {
     }
 
     @Test
-    fun dropdownCycleButtonsReachYearsOutsideTheInitialWindow() {
+    fun yearGridScrollsToYearsFarOutsideTheFirstScreen() {
         showPicker(LocalDate.of(2025, 10, 1))
 
-        composeTestRule.onNodeWithTag("date_picker_month_year_dropdown").performClick()
+        openYearGrid()
+        // The grid offers decades of years in both directions; a year 35 years ahead starts
+        // far off-screen and becomes clickable once its grid item is scrolled into view.
+        composeTestRule.onNodeWithTag("date_picker_year_menu")
+            .performScrollToIndex(yearGridIndex(2025, 2060))
         composeTestRule.waitForIdle()
-        // The initial window is 2020..2030; cycling back twice exposes 2019.
-        composeTestRule.onNodeWithTag("date_picker_year_cycle_previous").performClick()
-        composeTestRule.onNodeWithTag("date_picker_year_cycle_previous").performClick()
-        composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithTag("date_picker_year_2019").performClick()
+        composeTestRule.onNodeWithTag("date_picker_year_2060").performClick()
         composeTestRule.waitForIdle()
 
-        assertDropdownShows(YearMonth.of(2019, 10))
+        assertDropdownShows(YearMonth.of(2060, 10))
+    }
+
+    @Test
+    fun appliedYearIsAtTheTopOfTheGridWhenItOpens() {
+        showPicker(LocalDate.of(2025, 10, 1))
+
+        openYearGrid()
+        // The applied year is highlighted and scrolled into view: the top row starts at it.
+        composeTestRule.onNodeWithTag("date_picker_year_2025").assertIsDisplayed()
+    }
+
+    @Test
+    fun yearGridSpansTheWholeModalInThreeColumns() {
+        showPicker(LocalDate.of(2025, 10, 1))
+
+        openYearGrid()
+
+        // The panel spans the whole modal width (like the full-bleed header), not just the
+        // width of the small month/year picker button that opened it.
+        val menu = composeTestRule.onNodeWithTag("date_picker_year_menu")
+            .fetchSemanticsNode().boundsInRoot
+        val header = composeTestRule.onNodeWithTag("date_picker_header")
+            .fetchSemanticsNode().boundsInRoot
+        assertTrue(
+            "The year panel must span the whole modal width, edge to edge like the header " +
+                "(menu=[${menu.left}, ${menu.right}] header=[${header.left}, ${header.right}])",
+            abs(menu.left - header.left) < 1f && abs(menu.right - header.right) < 1f,
+        )
+        assertTrue(
+            "The year panel must be far wider than the small month/year picker button",
+            menu.width >
+                composeTestRule.onNodeWithTag("date_picker_month_year_dropdown")
+                    .fetchSemanticsNode().boundsInRoot.width * 1.5f,
+        )
+
+        // Three years per row: the top row holds 2025, 2026, 2027 side by side (same top,
+        // increasing left), and 2028 wraps to a lower row.
+        fun topOf(year: Int) =
+            composeTestRule.onNodeWithTag("date_picker_year_$year").fetchSemanticsNode().boundsInRoot.top
+        fun leftOf(year: Int) =
+            composeTestRule.onNodeWithTag("date_picker_year_$year").fetchSemanticsNode().boundsInRoot.left
+        val top2025 = topOf(2025)
+        assertTrue(
+            "2026/2027 must share the applied year's row (tops ${topOf(2026)}, ${topOf(2027)} vs $top2025)",
+            abs(topOf(2026) - top2025) < 1f && abs(topOf(2027) - top2025) < 1f,
+        )
+        assertTrue(
+            "The three cells of a row must sit side by side",
+            leftOf(2025) < leftOf(2026) && leftOf(2026) < leftOf(2027),
+        )
+        assertTrue(
+            "2028 must wrap onto the row below the three-column row",
+            topOf(2028) > top2025 + 1f,
+        )
     }
 
     @Test

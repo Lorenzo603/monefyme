@@ -153,22 +153,88 @@ class DatePickerModalRequirementsTest {
     // --- Month/year dropdown, prev/next buttons on top, scrollable calendar ---
 
     @Test
-    fun monthYearDropdownLetsYouPickOrCycleYears() {
+    fun monthYearDropdownTogglesAFullWidthYearGrid() {
         assertTrue(
             "There must be a month/year dropdown box (date_picker_month_year_dropdown)",
             pickerSource.contains("testTag(\"date_picker_month_year_dropdown\")"),
         )
         assertTrue(
-            "The dropdown must open a year menu with selectable and cycleable years",
-            pickerSource.contains("DropdownMenu(") &&
-                pickerSource.contains("YearPickerMenu(") &&
-                pickerSource.contains("yearOptions(") &&
-                pickerSource.contains("date_picker_year_cycle_previous") &&
-                pickerSource.contains("date_picker_year_cycle_next"),
+            "Tapping the dropdown must toggle the year panel open and closed",
+            pickerSource.contains("showYearMenu = !showYearMenu") &&
+                pickerSource.contains("if (showYearMenu)"),
+        )
+
+        val yearMenu = yearMenuSource()
+        assertTrue(
+            "The year panel must be a three-column LazyVerticalGrid, not a horizontal row",
+            yearMenu.contains("LazyVerticalGrid(") && yearMenu.contains("GridCells.Fixed(3)"),
+        )
+        val gridCall = yearMenu.substringAfter("LazyVerticalGrid(").substringBefore("contentPadding")
+        assertTrue(
+            "The LazyVerticalGrid itself must fill the whole modal width, not just the picker " +
+                "button's width",
+            gridCall.contains(".fillMaxWidth()"),
+        )
+        assertTrue(
+            "The year panel must sit on the modal's own background color (dialogBackground)",
+            yearMenu.contains("background(dialogBackground)"),
+        )
+        assertTrue(
+            "The year panel must keep the date_picker_year_menu test tag",
+            yearMenu.contains("testTag(\"date_picker_year_menu\")"),
+        )
+        assertTrue(
+            "Individual years must keep their date_picker_year_<year> test tags",
+            yearMenu.contains("testTag(\"date_picker_year_\$year\")"),
+        )
+        assertTrue(
+            "The year panel must replace the calendar while open (no anchored DropdownMenu popup)",
+            !pickerSource.contains("DropdownMenu("),
+        )
+    }
+
+    @Test
+    fun yearGridShowsManyScrollableYearsAroundTheAppliedOne() {
+        val yearMenu = yearMenuSource()
+        assertTrue(
+            "The grid must be backed by the tested wide year range (yearOptions of the visible year)",
+            yearMenu.contains("yearOptions(currentYear)"),
+        )
+        assertTrue(
+            "The grid must scroll vertically through many rows of years (LazyVerticalGrid scrolls; " +
+                "a bounded height keeps it scrolling)",
+            yearMenu.contains("LazyVerticalGrid(") && yearMenu.contains(".height(YearGridHeight)"),
+        )
+        assertTrue(
+            "The grid must open scrolled to the applied year",
+            yearMenu.contains("rememberLazyGridState(initialFirstVisibleItemIndex = YEAR_MENU_PAST_YEARS)"),
+        )
+        assertTrue(
+            "The applied year must stay highlighted in the app green, the others legible",
+            yearMenu.contains("year == currentYear") &&
+                yearMenu.contains("if (isSelected) dialogGreen else Color.Transparent") &&
+                yearMenu.contains("if (isSelected) Color.White else onDialogText"),
         )
         assertTrue(
             "Picking a year must jump the calendar to that year",
             pickerSource.contains("jumpToMonth(YearMonth.of(year, visibleMonth.monthValue))"),
+        )
+    }
+
+    @Test
+    fun oldHorizontalYearRowAndCycleButtonsAreGone() {
+        assertTrue(
+            "The single horizontal scrolling row of years must be gone",
+            !pickerSource.contains("horizontalScroll"),
+        )
+        assertTrue(
+            "The cycle buttons must be gone now that the grid scrolls through a broad year range",
+            !pickerSource.contains("date_picker_year_cycle_previous") &&
+                !pickerSource.contains("date_picker_year_cycle_next"),
+        )
+        assertTrue(
+            "The old narrow year window must be replaced by the broad dropdown-grid range",
+            !pickerSource.contains("YEAR_MENU_SPAN") && pickerSource.contains("YEAR_MENU_PAST_YEARS"),
         )
     }
 
@@ -350,6 +416,15 @@ class DatePickerModalRequirementsTest {
             "The old private dialog copy must be gone from the screen file",
             !screenSource.contains("private fun DatePickerModal"),
         )
+    }
+
+    /** The body of the YearPickerMenu composable, from its signature to the next composable. */
+    private fun yearMenuSource(): String {
+        val start = pickerSource.indexOf("private fun YearPickerMenu(")
+        assertTrue("The picker must keep a YearPickerMenu composable", start >= 0)
+        val end = pickerSource.indexOf("private fun CalendarMonthPage(", start)
+        assertTrue("YearPickerMenu must be followed by the CalendarMonthPage composable", end > start)
+        return pickerSource.substring(start, end)
     }
 
     /** The body of the ManualDateEntryDialog composable, from its signature to the end of the file. */

@@ -3,7 +3,6 @@ package com.lorenzo.monefyme.ui.util
 import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -82,22 +81,26 @@ class DatePickerLogicTest {
     // --- Year dropdown options ---
 
     @Test
-    fun yearOptionsCenterOnCurrentYearAscending() {
+    fun yearOptionsSpanABroadScrollableRangeAroundTheAppliedYear() {
         val options = yearOptions(2025)
-        assertEquals(2 * YEAR_MENU_SPAN + 1, options.size)
-        assertEquals((2020..2030).toList(), options)
+        // Many more years than the old +/-5 window: the dropdown grid scrolls through them.
+        assertEquals(YEAR_MENU_PAST_YEARS + 1 + YEAR_MENU_FUTURE_YEARS, options.size)
+        assertEquals((1995..2075).toList(), options)
         assertTrue(options.contains(2025))
+        assertTrue(
+            "The window must reach at least 20 years into both directions",
+            options.first() <= 2025 - 20 && options.last() >= 2025 + 20,
+        )
+        // The applied year sits exactly YEAR_MENU_PAST_YEARS items in, which is where the grid
+        // scrolls on open; a multiple of the three grid columns keeps it at the start of a row.
+        assertEquals(2025, options[YEAR_MENU_PAST_YEARS])
+        assertEquals(0, YEAR_MENU_PAST_YEARS % 3)
     }
 
     @Test
-    fun yearOptionsSupportCyclingToAdjacentWindows() {
-        // Tapping the cycle buttons must always expose the newly centered year.
-        val before = yearOptions(2024, span = 1)
-        val after = yearOptions(2026, span = 1)
-        assertEquals(listOf(2023, 2024, 2025), before)
-        assertEquals(listOf(2025, 2026, 2027), after)
-        assertTrue(before.contains(2025) && after.contains(2025))
-        assertFalse(before.contains(2026))
-        assertFalse(after.contains(2024))
+    fun yearOptionsAdaptToCustomSpans() {
+        assertEquals(listOf(2024, 2025, 2026), yearOptions(2025, pastYears = 1, futureYears = 1))
+        assertEquals((1995..2000).toList(), yearOptions(2000, pastYears = 5, futureYears = 0))
+        assertTrue(yearOptions(2025).contains(2025))
     }
 }

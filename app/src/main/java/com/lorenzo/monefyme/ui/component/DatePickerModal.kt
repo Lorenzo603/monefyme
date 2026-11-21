@@ -2,7 +2,6 @@ package com.lorenzo.monefyme.ui.component
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,9 +12,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -26,7 +28,6 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,7 +39,6 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -53,6 +53,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lorenzo.monefyme.ui.util.YEAR_MENU_PAST_YEARS
 import com.lorenzo.monefyme.ui.util.absoluteMonthIndexOf
 import com.lorenzo.monefyme.ui.util.formatDate
 import com.lorenzo.monefyme.ui.util.parseDateOrNull
@@ -71,6 +72,12 @@ private const val MONTH_PAGER_HALF_SPAN = 1200 // +/- 100 years of swipeable mon
 private val DayCellHeight = 44.dp
 private val DayCellVerticalSpacing = 3.dp
 private val CalendarPagerHeight = 330.dp
+
+// Year grid replacing the calendar while the month/year dropdown is open: three years per
+// row and as tall as the calendar it replaces, so the modal keeps its size while scrolling.
+private val YearCellHeight = 44.dp
+private val YearCellVerticalSpacing = 3.dp
+private val YearGridHeight = CalendarPagerHeight
 
 private val dialogGreen = Color(0xFF74C792)
 private val dialogBackground = Color(0xFFEAF8F2)
@@ -94,7 +101,8 @@ private val weekdayLabels = listOf("M", "T", "W", "T", "F", "S", "S")
  * with the selected date centered and enlarged plus an edit button that opens a manual date entry
  * dialog (one dd/MM/yyyy input, validated), a month/year dropdown to jump (or cycle) to another
  * year, prev/next month buttons next to that dropdown with the calendar itself also scrollable
- * month by month, and larger day cells with more spacing.
+ * month by month, and larger day cells with more spacing. While the dropdown is open its
+ * full-width, scrollable three-column year grid replaces the calendar (see [YearPickerMenu]).
  *
  * Selecting a day, or confirming a valid manual date, reports the chosen [LocalDate] through
  * [onDateSelected] exactly like the previous dialog did.
@@ -206,7 +214,7 @@ fun DatePickerModal(
                 ) {
                     Box(modifier = Modifier.weight(1f)) {
                         TextButton(
-                            onClick = { showYearMenu = true },
+                            onClick = { showYearMenu = !showYearMenu },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("date_picker_month_year_dropdown"),
@@ -222,21 +230,6 @@ fun DatePickerModal(
                                 style = MaterialTheme.typography.titleMedium,
                             )
                             Icon(imageVector = Icons.Filled.ExpandMore, contentDescription = null)
-                        }
-                        DropdownMenu(
-                            expanded = showYearMenu,
-                            onDismissRequest = { showYearMenu = false },
-                            modifier = Modifier
-                                .testTag("date_picker_year_menu")
-                                .background(dialogBackground),
-                        ) {
-                            YearPickerMenu(
-                                currentYear = visibleMonth.year,
-                                onYearSelected = { year ->
-                                    showYearMenu = false
-                                    jumpToMonth(YearMonth.of(year, visibleMonth.monthValue))
-                                },
-                            )
                         }
                     }
 
@@ -263,25 +256,37 @@ fun DatePickerModal(
                     }
                 }
 
-                // Scrolling the calendar itself pages to the previous/next month.
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(CalendarPagerHeight)
-                        .padding(start = 24.dp, end = 24.dp, top = 8.dp)
-                        .testTag("date_picker_calendar_pager"),
-                ) { page ->
-                    CalendarMonthPage(
-                        month = yearMonthOfAbsoluteMonthIndex(absoluteMonthOfPage(page)),
-                        selectedDate = selectedDate,
-                        today = today,
-                        onDaySelected = { day ->
-                            val date = yearMonthOfAbsoluteMonthIndex(absoluteMonthOfPage(page)).atDay(day)
-                            selectedDate = date
-                            onDateSelected(date)
+                // While the month/year dropdown is open its full-modal-width year grid takes the
+                // calendar's place; otherwise the paged calendar is shown and scrolling it pages
+                // to the previous/next month.
+                if (showYearMenu) {
+                    YearPickerMenu(
+                        currentYear = visibleMonth.year,
+                        onYearSelected = { year ->
+                            showYearMenu = false
+                            jumpToMonth(YearMonth.of(year, visibleMonth.monthValue))
                         },
                     )
+                } else {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(CalendarPagerHeight)
+                            .padding(start = 24.dp, end = 24.dp, top = 8.dp)
+                            .testTag("date_picker_calendar_pager"),
+                    ) { page ->
+                        CalendarMonthPage(
+                            month = yearMonthOfAbsoluteMonthIndex(absoluteMonthOfPage(page)),
+                            selectedDate = selectedDate,
+                            today = today,
+                            onDaySelected = { day ->
+                                val date = yearMonthOfAbsoluteMonthIndex(absoluteMonthOfPage(page)).atDay(day)
+                                selectedDate = date
+                                onDateSelected(date)
+                            },
+                        )
+                    }
                 }
 
                 // Cancel button, green text at the bottom right of the dialog.
@@ -320,53 +325,49 @@ fun DatePickerModal(
 }
 
 /**
- * Year chooser shown inside the month/year dropdown: a horizontally scrollable list of years
- * around [currentYear] with cycle buttons that slide the window through the years.
+ * Year chooser shown while the month/year dropdown is open: a vertically scrollable grid of
+ * many years around [currentYear] that spans the whole modal width (it replaces the calendar).
+ * The applied year is highlighted in the app green and scrolled into view; tapping a year
+ * reports it through [onYearSelected], which jumps the calendar to that year.
  */
 @Composable
 private fun YearPickerMenu(
     currentYear: Int,
     onYearSelected: (Int) -> Unit,
 ) {
-    var centerYear by remember { mutableIntStateOf(currentYear) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(
-            onClick = { centerYear -= 1 },
-            modifier = Modifier.testTag("date_picker_year_cycle_previous"),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.ChevronLeft,
-                contentDescription = "Earlier years",
-                tint = onDialogText,
-            )
-        }
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            yearOptions(centerYear).forEach { year ->
-                val isSelected = year == currentYear
-                TextButton(
-                    onClick = { onYearSelected(year) },
-                    modifier = Modifier.testTag("date_picker_year_$year"),
-                    colors = ButtonDefaults.textButtonColors(
-                        containerColor = if (isSelected) dialogGreen else Color.Transparent,
-                        contentColor = if (isSelected) Color.White else onDialogText,
-                    ),
-                ) {
-                    Text(year.toString())
-                }
+    val years = remember(currentYear) { yearOptions(currentYear) }
+    // Open the grid with the applied year at its top row: the applied year sits exactly
+    // YEAR_MENU_PAST_YEARS items into the (three-column) ascending list.
+    val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = YEAR_MENU_PAST_YEARS)
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        state = gridState,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(YearGridHeight)
+            .background(dialogBackground)
+            .testTag("date_picker_year_menu"),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(YearCellVerticalSpacing),
+    ) {
+        items(years) { year ->
+            val isSelected = year == currentYear
+            TextButton(
+                onClick = { onYearSelected(year) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(YearCellHeight)
+                    .padding(horizontal = 6.dp)
+                    .testTag("date_picker_year_$year"),
+                // Applied year: a filled green pill. All others: plain legible text.
+                shape = RoundedCornerShape(percent = 50),
+                colors = ButtonDefaults.textButtonColors(
+                    containerColor = if (isSelected) dialogGreen else Color.Transparent,
+                    contentColor = if (isSelected) Color.White else onDialogText,
+                ),
+            ) {
+                Text(year.toString(), fontSize = 16.sp)
             }
-        }
-        IconButton(
-            onClick = { centerYear += 1 },
-            modifier = Modifier.testTag("date_picker_year_cycle_next"),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = "Later years",
-                tint = onDialogText,
-            )
         }
     }
 }

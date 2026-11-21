@@ -11,8 +11,13 @@ import java.time.YearMonth
  * dialog validates its single dd/MM/yyyy input with [com.lorenzo.monefyme.ui.util.parseDateOrNull].
  */
 
-/** Half-width of the year window shown by the month/year dropdown (center year +/- this span). */
-const val YEAR_MENU_SPAN = 5
+/**
+ * Years the month/year dropdown grid offers before and after the applied year. The grid shows
+ * them in three columns, so the past-years count stays a multiple of three: the grid can then
+ * scroll to a whole row starting exactly at the applied year.
+ */
+const val YEAR_MENU_PAST_YEARS = 30
+const val YEAR_MENU_FUTURE_YEARS = 50
 
 /**
  * Absolute month counter (year * 12 + (month - 1)); strictly increasing across year boundaries,
@@ -34,8 +39,12 @@ fun yearMonthOfAbsoluteMonthIndex(index: Int): YearMonth =
 fun shiftMonth(month: YearMonth, deltaMonths: Int): YearMonth = month.plusMonths(deltaMonths.toLong())
 
 /**
- * Years offered by the month/year dropdown: [span] years below and above [centerYear], in
- * ascending order, always containing [centerYear].
+ * Years offered by the month/year dropdown grid: from [pastYears] below to [futureYears] above
+ * [currentYear], in ascending order, always containing [currentYear]. The window is deliberately
+ * broad (many grid rows) so the panel scrolls vertically instead of paging year by year.
  */
-fun yearOptions(centerYear: Int, span: Int = YEAR_MENU_SPAN): List<Int> =
-    ((centerYear - span)..(centerYear + span)).toList()
+fun yearOptions(
+    currentYear: Int,
+    pastYears: Int = YEAR_MENU_PAST_YEARS,
+    futureYears: Int = YEAR_MENU_FUTURE_YEARS,
+): List<Int> = ((currentYear - pastYears)..(currentYear + futureYears)).toList()
