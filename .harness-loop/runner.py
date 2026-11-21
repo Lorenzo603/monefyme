@@ -21,7 +21,9 @@ Usage (from the repository root):
     python .harness-loop/runner.py --model claude-haiku-4.5 --thinking high   # github copilot
     python .harness-loop/runner.py --model unsloth/Qwen3.5-35B-A3B-UD-Q4_K_L   # llama.cpp
     python .harness-loop/runner.py --model Qwen3.8-Flash-Next-IQ3-XXS   # strata
-    python .harness-loop/runner.py --model Qwen3.8-FN-UD-IQ3_XXS   # basalt
+    python .harness-loop/runner.py --model Qwen3.8-FN-UD-IQ3_XXS    # basalt
+    python .harness-loop/runner.py --model Qwen3.8-FN-UD-Q4_K_XL    # basalt
+    python .harness-loop/runner.py --model Qwen3.8-FN-NVFP4-DQ6_K   # basalt
 
 """
 
