@@ -4,13 +4,17 @@
   "thinking": "medium",
   "tools": "",
   "timeout_seconds": 1500,
+  "timeout_grace_seconds": 300,
+  "max_turns": 0,
   "log_tail_lines": 40,
   "ephemeral_sessions": false,
   "offline": false,
   "project_trust": "approve",
+  "prompt_mode": "stdin",
   "stream_output": true,
   "stream_thinking": true,
   "stream_raw": false,
+  "color": "auto",
   "max_attempts": 3,
   "verify_commands": [
     "./gradlew testDebugUnitTest"
