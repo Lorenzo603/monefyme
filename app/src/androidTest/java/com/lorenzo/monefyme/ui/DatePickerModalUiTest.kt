@@ -9,7 +9,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performGesture
-import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import com.lorenzo.monefyme.ui.component.DatePickerModal
@@ -29,8 +29,8 @@ import org.junit.Test
  * Asserts the picker still returns the same LocalDate contract to its caller when a day is
  * tapped, and covers the new selectable behaviour: prev/next month buttons next to the
  * month/year dropdown, jumping to another year through the dropdown, scrolling the calendar
- * itself to a neighbouring month, and the header edit button opening a validated manual
- * day/month/year entry modal that returns the manually entered date.
+ * itself to a neighbouring month, and the header edit button opening a validated manual date
+ * entry modal (green header plus one dd/MM/yyyy input) that returns the manually entered date.
  *
  * Requires a device/emulator: run with ./gradlew connectedDebugAndroidTest.
  */
@@ -219,9 +219,15 @@ class DatePickerModalUiTest {
         composeTestRule.onNodeWithTag("date_picker_edit_button").performClick()
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithTag("manual_date_day").performTextInput("29")
-        composeTestRule.onNodeWithTag("manual_date_month").performTextInput("02")
-        composeTestRule.onNodeWithTag("manual_date_year").performTextInput("2024")
+        // The manual modal shows the date being edited in its own green header, in the same
+        // compact format as the main picker, and pre-fills the single input with dd/MM/yyyy.
+        composeTestRule.onNodeWithTag("manual_date_header").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("manual_date_header_date").assertTextEquals("1 Oct 2025")
+        composeTestRule.onNodeWithTag("manual_date_input")
+            .assertIsDisplayed()
+            .assertTextEquals("01/10/2025")
+
+        composeTestRule.onNodeWithTag("manual_date_input").performTextReplacement("29/02/2024")
         composeTestRule.onNodeWithTag("manual_date_confirm").performClick()
         composeTestRule.waitForIdle()
 
@@ -235,9 +241,7 @@ class DatePickerModalUiTest {
         composeTestRule.onNodeWithTag("date_picker_edit_button").performClick()
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithTag("manual_date_day").performTextInput("31")
-        composeTestRule.onNodeWithTag("manual_date_month").performTextInput("02")
-        composeTestRule.onNodeWithTag("manual_date_year").performTextInput("2025")
+        composeTestRule.onNodeWithTag("manual_date_input").performTextReplacement("31/02/2025")
         composeTestRule.onNodeWithTag("manual_date_confirm").performClick()
         composeTestRule.waitForIdle()
 

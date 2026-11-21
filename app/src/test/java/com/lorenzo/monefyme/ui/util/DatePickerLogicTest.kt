@@ -4,15 +4,14 @@ import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * Covers the pure logic behind the improved DatePickerModal: absolute month indexing and
  * month/year navigation math (used by the scrollable calendar pager, the prev/next month buttons
- * and the month/year dropdown), the year options it offers, and parsing/validation of the
- * manually entered day/month/year fields.
+ * and the month/year dropdown) and the year options it offers. The manual date entry modal's
+ * single dd/MM/yyyy input is validated by parseDateOrNull, covered in FormattersTest.
  */
 class DatePickerLogicTest {
 
@@ -100,46 +99,5 @@ class DatePickerLogicTest {
         assertTrue(before.contains(2025) && after.contains(2025))
         assertFalse(before.contains(2026))
         assertFalse(after.contains(2024))
-    }
-
-    // --- Manual day/month/year entry parsing and validation ---
-
-    @Test
-    fun parseManualDateAcceptsValidDates() {
-        assertEquals(LocalDate.of(2025, 2, 1), parseManualDateOrNull("1", "2", "2025")) // day=1, month=2
-        assertEquals(LocalDate.of(2025, 1, 2), parseManualDateOrNull("2", "1", "2025")) // day=2, month=1
-        assertEquals(LocalDate.of(2025, 10, 29), parseManualDateOrNull("29", "10", "2025"))
-        assertEquals(LocalDate.of(2025, 10, 29), parseManualDateOrNull(" 29 ", "10 ", " 2025"))
-        assertEquals(LocalDate.of(2024, 2, 29), parseManualDateOrNull("29", "02", "2024")) // leap year
-        assertEquals(LocalDate.of(2100, 12, 31), parseManualDateOrNull("31", "12", "2100"))
-    }
-
-    @Test
-    fun parseManualDateRejectsInvalidInput() {
-        assertNull(parseManualDateOrNull("", "10", "2025"))
-        assertNull(parseManualDateOrNull("29", "", "2025"))
-        assertNull(parseManualDateOrNull("29", "10", ""))
-        assertNull(parseManualDateOrNull("29a", "10", "2025"))
-        assertNull(parseManualDateOrNull("2.9", "10", "2025"))
-        assertNull(parseManualDateOrNull("0", "10", "2025")) // day below 1
-        assertNull(parseManualDateOrNull("32", "10", "2025")) // day above 31
-        assertNull(parseManualDateOrNull("29", "13", "2025")) // month above 12
-        assertNull(parseManualDateOrNull("29", "0", "2025")) // month below 1
-        assertNull(parseManualDateOrNull("31", "2", "2025")) // 31 February
-        assertNull(parseManualDateOrNull("29", "2", "2025")) // 29 February in a non-leap year
-        assertNull(parseManualDateOrNull("31", "4", "2025")) // 31 April
-        assertNull(parseManualDateOrNull("29", "10", "0")) // year below 1
-        assertNull(parseManualDateOrNull("29", "10", "10000")) // year above 9999
-        assertNull(parseManualDateOrNull("-1", "10", "2025")) // negative day
-        assertNull(parseManualDateOrNull("29", "-1", "2025")) // negative month
-    }
-
-    @Test
-    fun parseManualDateUsesLeapYearRules() {
-        assertEquals(LocalDate.of(2024, 2, 29), parseManualDateOrNull("29", "2", "2024"))
-        assertNull(parseManualDateOrNull("29", "2", "2023"))
-        // Century rule: 2000 is a leap year, 1900 is not.
-        assertEquals(LocalDate.of(2000, 2, 29), parseManualDateOrNull("29", "2", "2000"))
-        assertNull(parseManualDateOrNull("29", "2", "1900"))
     }
 }

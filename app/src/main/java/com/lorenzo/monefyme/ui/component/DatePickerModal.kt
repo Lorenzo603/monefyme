@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -24,7 +23,6 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -56,7 +54,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lorenzo.monefyme.ui.util.absoluteMonthIndexOf
-import com.lorenzo.monefyme.ui.util.parseManualDateOrNull
+import com.lorenzo.monefyme.ui.util.formatDate
+import com.lorenzo.monefyme.ui.util.parseDateOrNull
 import com.lorenzo.monefyme.ui.util.shiftMonth
 import com.lorenzo.monefyme.ui.util.yearMonthOfAbsoluteMonthIndex
 import com.lorenzo.monefyme.ui.util.yearOptions
@@ -92,8 +91,8 @@ private val weekdayLabels = listOf("M", "T", "W", "T", "F", "S", "S")
  * Custom date picker dialog used for transaction dates.
  *
  * Compared to the plain Material picker it shows a smaller "Select date" title, a green header
- * with the selected date centered and enlarged plus an edit button that opens a manual
- * day/month/year entry dialog (validated), a month/year dropdown to jump (or cycle) to another
+ * with the selected date centered and enlarged plus an edit button that opens a manual date entry
+ * dialog (one dd/MM/yyyy input, validated), a month/year dropdown to jump (or cycle) to another
  * year, prev/next month buttons next to that dropdown with the calendar itself also scrollable
  * month by month, and larger day cells with more spacing.
  *
@@ -306,6 +305,7 @@ fun DatePickerModal(
 
     if (showManualEntry) {
         ManualDateEntryDialog(
+            currentDate = selectedDate,
             onDismiss = { showManualEntry = false },
             onConfirm = { date ->
                 showManualEntry = false
@@ -442,142 +442,145 @@ private fun CalendarMonthPage(
     }
 }
 
-/** Modal to type the exact transaction date into separate day/month/year fields. */
+/**
+ * Modal to type the exact transaction date into one dd/MM/yyyy field.
+ *
+ * It mirrors the main picker: a green header showing the date currently selected in the parent
+ * picker (same compact "21 Nov 2026" format, centered and enlarged), a single date input
+ * pre-filled with that date, and Save/Cancel buttons. A valid entry is parsed with the app's
+ * [parseDateOrNull] and reported through [onConfirm]; an invalid one shows a validation error
+ * and keeps the modal open.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ManualDateEntryDialog(
+    currentDate: LocalDate,
     onDismiss: () -> Unit,
     onConfirm: (LocalDate) -> Unit,
 ) {
-    var dayText by rememberSaveable { mutableStateOf("") }
-    var monthText by rememberSaveable { mutableStateOf("") }
-    var yearText by rememberSaveable { mutableStateOf("") }
+    var dateText by rememberSaveable { mutableStateOf(formatDate(currentDate)) }
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
 
-    AlertDialog(
+    // BasicAlertDialog like the main picker so the green header can span the whole modal window.
+    BasicAlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Enter date",
-                style = MaterialTheme.typography.titleMedium,
-                color = onDialogText,
-            )
-        },
-        text = {
-            Column {
-                Text(
-                    text = "Type the exact day, month and year.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF5F6768),
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.Bottom,
-                ) {
-                    ManualDateField(
-                        label = "Day",
-                        placeholder = "dd",
-                        value = dayText,
-                        maxLength = 2,
-                        testTag = "manual_date_day",
-                        onValueChange = { dayText = it },
-                    )
-                    Text(
-                        text = "/",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = onDialogText,
-                        modifier = Modifier.padding(bottom = 20.dp),
-                    )
-                    ManualDateField(
-                        label = "Month",
-                        placeholder = "mm",
-                        value = monthText,
-                        maxLength = 2,
-                        testTag = "manual_date_month",
-                        onValueChange = { monthText = it },
-                    )
-                    Text(
-                        text = "/",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = onDialogText,
-                        modifier = Modifier.padding(bottom = 20.dp),
-                    )
-                    ManualDateField(
-                        label = "Year",
-                        placeholder = "yyyy",
-                        value = yearText,
-                        maxLength = 4,
-                        testTag = "manual_date_year",
-                        onValueChange = { yearText = it },
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                errorMessage?.let { message ->
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFC62828),
-                        modifier = Modifier.testTag("manual_date_error"),
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val parsed = parseManualDateOrNull(dayText, monthText, yearText)
-                    if (parsed != null) {
-                        onConfirm(parsed)
-                    } else {
-                        errorMessage = "Not a valid date. Use day 1-31, month 1-12 and a real year."
-                    }
-                },
-                modifier = Modifier.testTag("manual_date_confirm"),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = dialogShape,
+            color = dialogBackground,
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
-        containerColor = dialogBackground,
-        shape = dialogShape,
-    )
-}
+                // Green header in the main picker's style, showing the date being edited.
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("manual_date_header"),
+                    shape = RoundedCornerShape(0.dp),
+                    color = dialogGreen,
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = "Enter date",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White,
+                        )
+                        Text(
+                            text = currentDate.format(pickerHeaderFormatter),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp)
+                                .testTag("manual_date_header_date"),
+                            color = Color.White,
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
 
-@Composable
-private fun ManualDateField(
-    label: String,
-    placeholder: String,
-    value: String,
-    maxLength: Int,
-    testTag: String,
-    onValueChange: (String) -> Unit,
-) {
-    Column {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = onDialogText,
-        )
-        TextField(
-            value = value,
-            onValueChange = { raw -> onValueChange(raw.filter(Char::isDigit).take(maxLength)) },
-            modifier = Modifier
-                .width(if (maxLength == 4) 88.dp else 72.dp)
-                .testTag(testTag),
-            singleLine = true,
-            placeholder = { Text(placeholder, color = Color(0xFF95A2A3)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = dayCellBackground,
-                unfocusedContainerColor = dayCellBackground,
-                focusedTextColor = onDialogText,
-                unfocusedTextColor = onDialogText,
-            ),
-        )
+                // One single dd/MM/yyyy input, pre-filled with the date being edited.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(top = 16.dp, bottom = 4.dp),
+                ) {
+                    Text(
+                        text = "Date",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF5F6768),
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    TextField(
+                        value = dateText,
+                        onValueChange = { raw ->
+                            dateText = raw.filter { it.isDigit() || it == '/' }.take(10)
+                            errorMessage = null
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("manual_date_input"),
+                        singleLine = true,
+                        placeholder = { Text("dd/MM/yyyy", color = Color(0xFF95A2A3)) },
+                        // Phone-style keypad: like a number pad but it also offers the "/" separator.
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = dayCellBackground,
+                            unfocusedContainerColor = dayCellBackground,
+                            focusedTextColor = onDialogText,
+                            unfocusedTextColor = onDialogText,
+                        ),
+                    )
+                    errorMessage?.let { message ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFC62828),
+                            modifier = Modifier.testTag("manual_date_error"),
+                        )
+                    }
+                }
+
+                // Save/Cancel at the bottom right, green like the main picker's Cancel.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .padding(top = 4.dp, bottom = 10.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.testTag("manual_date_cancel"),
+                        colors = ButtonDefaults.textButtonColors(contentColor = dialogGreen),
+                    ) {
+                        Text("Cancel")
+                    }
+                    TextButton(
+                        onClick = {
+                            val parsed = parseDateOrNull(dateText)
+                            if (parsed != null) {
+                                onConfirm(parsed)
+                            } else {
+                                errorMessage = "Not a valid date. Use the dd/MM/yyyy format, e.g. 21/11/2026."
+                            }
+                        },
+                        modifier = Modifier.testTag("manual_date_confirm"),
+                        colors = ButtonDefaults.textButtonColors(contentColor = dialogGreen),
+                    ) {
+                        Text("Save")
+                    }
+                }
+            }
+        }
     }
 }

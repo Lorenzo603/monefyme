@@ -9,12 +9,14 @@ import org.junit.Test
  *
  * The dialog is Compose UI, so like the other screen-structure tests in this repository this
  * test asserts on the source structure: the smaller title, the green centered header with the
- * enlarged selected date and its manual-entry edit button, the month/year dropdown with prev/next
- * month buttons moved to the top, the scrollable (paged) calendar with larger day cells, and that
- * the callers still receive their LocalDate through the unchanged DatePickerModal call.
+ * enlarged selected date and its manual-entry edit button, the manual modal's own green header
+ * with its single dd/MM/yyyy input, the month/year dropdown with prev/next month buttons moved
+ * to the top, the scrollable (paged) calendar with larger day cells, and that the callers still
+ * receive their LocalDate through the unchanged DatePickerModal call.
  *
- * The pure navigation/parsing behaviour (month math, manual entry validation) is covered
- * behaviourally by DatePickerLogicTest and end-to-end by DatePickerModalUiTest (androidTest).
+ * The pure navigation behaviour (month math) is covered behaviourally by DatePickerLogicTest and
+ * the dd/MM/yyyy parsing by FormattersTest; the whole flow end-to-end by DatePickerModalUiTest
+ * (androidTest).
  */
 class DatePickerModalRequirementsTest {
 
@@ -83,19 +85,68 @@ class DatePickerModalRequirementsTest {
             "The edit button must open the manual date entry modal",
             pickerSource.contains("showManualEntry = true") && pickerSource.contains("ManualDateEntryDialog("),
         )
+        val manualModal = manualModalSource()
         assertTrue(
-            "The manual modal must have day/month/year input fields",
-            pickerSource.contains("manual_date_day") &&
-                pickerSource.contains("manual_date_month") &&
-                pickerSource.contains("manual_date_year"),
+            "The manual modal must use one single date input (manual_date_input) instead of the " +
+                "old day/month/year fields",
+            manualModal.contains("testTag(\"manual_date_input\")") &&
+                !pickerSource.contains("manual_date_day") &&
+                !pickerSource.contains("manual_date_month") &&
+                !pickerSource.contains("manual_date_year"),
         )
         assertTrue(
-            "The manual modal must validate the entered date with parseManualDateOrNull before confirming",
-            pickerSource.contains("parseManualDateOrNull(dayText, monthText, yearText)"),
+            "The manual modal must validate the entered text with the app's dd/MM/yyyy parser " +
+                "(parseDateOrNull) before confirming",
+            manualModal.contains("parseDateOrNull(") &&
+                !pickerSource.contains("parseManualDateOrNull"),
         )
         assertTrue(
             "Invalid manual input must show a validation error to the user",
-            pickerSource.contains("manual_date_error"),
+            manualModal.contains("testTag(\"manual_date_error\")"),
+        )
+        assertTrue(
+            "The manual modal must keep its Save/Cancel buttons with the manual_date_confirm tag",
+            manualModal.contains("testTag(\"manual_date_confirm\")") &&
+                manualModal.contains("Text(\"Save\")") &&
+                manualModal.contains("Text(\"Cancel\")"),
+        )
+    }
+
+    @Test
+    fun manualModalShowsAGreenHeaderWithTheDateBeingEdited() {
+        // The parent picker hands the date currently selected in it down to the manual modal.
+        val callStart = pickerSource.indexOf("ManualDateEntryDialog(")
+        assertTrue(
+            "The manual modal must receive the date currently selected in the parent picker",
+            pickerSource.substring(callStart, callStart + 120).contains("currentDate = selectedDate"),
+        )
+
+        val manualModal = manualModalSource()
+        val headerStart = manualModal.indexOf("testTag(\"manual_date_header\")")
+        assertTrue("The manual modal must have a green header like the main picker", headerStart >= 0)
+        val inputStart = manualModal.indexOf("testTag(\"manual_date_input\")")
+        assertTrue(
+            "The green header must sit at the top of the modal, above the single date input",
+            inputStart > headerStart,
+        )
+        val headerSection = manualModal.substring(headerStart, headerStart + 1200)
+        assertTrue(
+            "The manual modal header must use the same app green (0xFF74C792) as the main header",
+            headerSection.contains("color = dialogGreen"),
+        )
+
+        val dateTag = manualModal.indexOf("testTag(\"manual_date_header_date\")")
+        assertTrue("The manual modal header must show the date being edited", dateTag >= 0)
+        val dateBlock = manualModal.substring((dateTag - 260).coerceAtLeast(0), dateTag + 260)
+        assertTrue(
+            "The header date must be the date passed down for editing, in the same compact " +
+                "weekday-less format (d MMM yyyy) as the main picker header",
+            dateBlock.contains("currentDate.format(pickerHeaderFormatter)"),
+        )
+        val fontSize = Regex("fontSize = (\\d+)\\.sp").find(dateBlock)?.groupValues?.get(1)?.toIntOrNull()
+        assertTrue(
+            "The header date must be centered and enlarged like the main picker header",
+            dateBlock.contains("textAlign = TextAlign.Center") && (fontSize ?: 0) >= 22,
         )
     }
 
@@ -299,6 +350,13 @@ class DatePickerModalRequirementsTest {
             "The old private dialog copy must be gone from the screen file",
             !screenSource.contains("private fun DatePickerModal"),
         )
+    }
+
+    /** The body of the ManualDateEntryDialog composable, from its signature to the end of the file. */
+    private fun manualModalSource(): String {
+        val start = pickerSource.indexOf("private fun ManualDateEntryDialog(")
+        assertTrue("The picker must keep a ManualDateEntryDialog composable", start >= 0)
+        return pickerSource.substring(start)
     }
 
     private fun readSource(relativePath: String): String {
