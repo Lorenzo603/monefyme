@@ -899,12 +899,31 @@ internal fun TransactionGroupedList(
                 ) { transaction ->
                     TransactionRow(
                         transaction = transaction,
+                        isGroupedByCategory = isGroupedByCategory,
                         onClick = { onTransactionClick(transaction) },
                     )
                 }
             }
         }
     }
+}
+
+// Shared colors of the transaction-history group cards. The group header and its entry rows use
+// the very same container color, so an open accordion reads as one seamless block instead of a
+// green header glued to white entry cards.
+internal val GroupCardContainerColor = Color(0xFFEAF8F2)
+// Type colors: red marks an expense, green marks an income (entry dots and group totals).
+internal val GroupEntryExpenseColor = Color(0xFFD95A5A)
+internal val GroupEntryIncomeColor = Color(0xFF74C792)
+
+/**
+ * The transaction type that colors a group's total amount: the majority type of the group's
+ * transactions. A tie counts as an expense, so a mixed group is shown in red.
+ */
+internal fun groupTotalTransactionType(transactions: List<TransactionListItem>): TransactionType {
+    val incomeCount = transactions.count { it.transactionType == TransactionType.INCOME }
+    val expenseCount = transactions.size - incomeCount
+    return if (incomeCount > expenseCount) TransactionType.INCOME else TransactionType.EXPENSE
 }
 
 @Composable
@@ -918,6 +937,12 @@ private fun GroupHeader(
 ) {
     val totalAmount = groupTransactions.sumOf { it.amountCents }
     val transactionCount = groupTransactions.size
+    // The group total is red for an expense group and green for an income group; a mixed group
+    // follows the majority type of its transactions (a tie counts as expense).
+    val groupAmountColor = when (groupTotalTransactionType(groupTransactions)) {
+        TransactionType.EXPENSE -> GroupEntryExpenseColor
+        TransactionType.INCOME -> GroupEntryIncomeColor
+    }
     val categoryItem = if (isGroupedByCategory) {
         groupTransactions.firstOrNull()?.let { t ->
             categoriesMap[t.categoryId]
@@ -934,19 +959,27 @@ private fun GroupHeader(
             .testTag("group_header_$groupName"),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFEAF8F2),
+            containerColor = GroupCardContainerColor,
         ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f, fill = false),
             ) {
+                Icon(
+                    imageVector = if (isExpanded) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    tint = Color(0xFF95A2A3),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 if (isGroupedByCategory && categoryItem != null) {
                     Box(
                         modifier = Modifier
@@ -963,46 +996,41 @@ private fun GroupHeader(
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = groupName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                } else {
-                    Text(
-                        text = groupName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
                 }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = if (isExpanded) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    tint = Color(0xFF95A2A3),
+                Text(
+                    text = groupName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                 )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(
-                    horizontalAlignment = Alignment.End,
+                Spacer(modifier = Modifier.width(8.dp))
+                // The number of entries in the group, prominent and circled in green just after
+                // the group's name.
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(GroupEntryIncomeColor)
+                        .testTag("group_count_$groupName"),
+                    contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = "$transactionCount",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF95A2A3),
-                    )
-                    Text(
-                        text = currencyAnnotatedString(
-                            text = centsToDisplay(totalAmount),
-                            baseFontSize = MaterialTheme.typography.titleMedium.fontSize,
-                        ),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
+                        color = Color.White,
                     )
                 }
             }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = currencyAnnotatedString(
+                    text = centsToDisplay(totalAmount),
+                    baseFontSize = MaterialTheme.typography.titleMedium.fontSize,
+                ),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = groupAmountColor,
+            )
         }
     }
 }
@@ -1010,51 +1038,74 @@ private fun GroupHeader(
 @Composable
 private fun TransactionRow(
     transaction: com.lorenzo.monefyme.data.model.TransactionListItem,
+    isGroupedByCategory: Boolean,
     onClick: () -> Unit,
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(horizontal = 16.dp, vertical = 2.dp)
             .clickable(onClick = onClick)
             .testTag("transaction_row_${transaction.id}"),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White,
+            containerColor = GroupCardContainerColor,
         ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
+            // Entry type indicator: a small dot, red for an expense and green for an income.
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(
+                        when (transaction.transactionType) {
+                            TransactionType.EXPENSE -> GroupEntryExpenseColor
+                            TransactionType.INCOME -> GroupEntryIncomeColor
+                        },
+                    )
+                    .testTag("transaction_type_dot_${transaction.id}"),
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            val amountText = currencyAnnotatedString(
+                text = centsToDisplay(transaction.amountCents, transaction.transactionType),
+                baseFontSize = MaterialTheme.typography.titleMedium.fontSize,
+            )
+            if (isGroupedByCategory) {
+                // The category is already in the group header, so the entry shows only the amount
+                // on the left and the date on the right.
+                Text(
+                    text = amountText,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = formatDate(transaction.date),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF95A2A3),
+                )
+            } else {
+                // The date is already in the group header, so the entry shows only the category
+                // on the left and the amount on the right.
                 Text(
                     text = transaction.categoryName,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Text(formatDate(transaction.date), style = MaterialTheme.typography.bodySmall)
-                if (transaction.description.isNotBlank()) {
-                    Text(transaction.description, style = MaterialTheme.typography.bodyMedium)
-                }
-                if (transaction.account.isNotBlank()) {
-                    Text("Account: ${transaction.account}", style = MaterialTheme.typography.bodySmall)
-                }
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = amountText,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
-            Text(
-                text = currencyAnnotatedString(
-                    text = centsToDisplay(transaction.amountCents, transaction.transactionType),
-                    baseFontSize = MaterialTheme.typography.titleMedium.fontSize,
-                ),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-            )
         }
     }
 }

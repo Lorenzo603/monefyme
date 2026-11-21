@@ -20,6 +20,9 @@ import java.time.LocalDate
  * accordion - its transactions appear - and clicking it again collapses it. Other groups are not
  * affected by a click.
  *
+ * Expanded entries are identified by their `transaction_row_<id>` tags: a category-grouped entry
+ * row shows only the type dot, the amount and the date, so its description is not on screen.
+ *
  * A category can also be handed to the list already expanded ([TransactionGroupedList]'s
  * `expandCategory`, which is how a pie chart section click opens the history): that accordion is
  * open from the start, the others stay collapsed, and the user can still toggle every group.
@@ -92,10 +95,10 @@ class TransactionHistoryAccordionTest {
         composeTestRule.onNodeWithTag("group_header_Food").assertIsDisplayed()
         composeTestRule.onNodeWithTag("group_header_Transport").assertIsDisplayed()
 
-        // Verify transactions are not displayed by checking that their text content is not visible
-        composeTestRule.onNodeWithText("Lunch").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Dinner").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Taxi").assertDoesNotExist()
+        // Verify transactions are not displayed: none of the entry rows exist yet.
+        composeTestRule.onNodeWithTag("transaction_row_11").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_12").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_13").assertDoesNotExist()
     }
 
     @Test
@@ -105,10 +108,10 @@ class TransactionHistoryAccordionTest {
         composeTestRule.onNodeWithTag("group_header_Food").performClick()
 
         // Verify Food transactions are now displayed
-        composeTestRule.onNodeWithText("Lunch").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Dinner").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("transaction_row_11").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("transaction_row_12").assertIsDisplayed()
         // The Transport accordion stays collapsed.
-        composeTestRule.onNodeWithText("Taxi").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_13").assertDoesNotExist()
     }
 
     @Test
@@ -116,11 +119,11 @@ class TransactionHistoryAccordionTest {
         showGroupedList()
 
         composeTestRule.onNodeWithTag("group_header_Food").performClick()
-        composeTestRule.onNodeWithText("Lunch").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("transaction_row_11").assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("group_header_Food").performClick()
-        composeTestRule.onNodeWithText("Lunch").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Dinner").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_11").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_12").assertDoesNotExist()
 
         // The header itself remains on screen.
         composeTestRule.onNodeWithTag("group_header_Food").assertIsDisplayed()
@@ -133,13 +136,13 @@ class TransactionHistoryAccordionTest {
         composeTestRule.onNodeWithTag("group_header_Food").performClick()
         composeTestRule.onNodeWithTag("group_header_Transport").performClick()
 
-        composeTestRule.onNodeWithText("Lunch").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Taxi").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("transaction_row_11").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("transaction_row_13").assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("group_header_Food").performClick()
 
-        composeTestRule.onNodeWithText("Lunch").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Taxi").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("transaction_row_11").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_13").assertIsDisplayed()
     }
 
     // --- opened from a pie chart section click: that category's accordion is already expanded ---
@@ -148,11 +151,11 @@ class TransactionHistoryAccordionTest {
     fun requestedCategoryOpensItsAccordionWithoutAnyClick() {
         showGroupedList(expandCategory = "Food")
 
-        // Verify transactions are displayed based on text content
-        composeTestRule.onNodeWithText("Lunch").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Dinner").assertIsDisplayed()
+        // Verify transactions are displayed based on their entry rows
+        composeTestRule.onNodeWithTag("transaction_row_11").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("transaction_row_12").assertIsDisplayed()
         // Only the clicked category's accordion opens.
-        composeTestRule.onNodeWithText("Taxi").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_13").assertDoesNotExist()
     }
 
     @Test
@@ -160,9 +163,9 @@ class TransactionHistoryAccordionTest {
         // The pie chart and the transactions do not have to spell the category identically.
         showGroupedList(expandCategory = "transport")
 
-        composeTestRule.onNodeWithText("Taxi").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Lunch").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Dinner").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_13").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("transaction_row_11").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_12").assertDoesNotExist()
     }
 
     @Test
@@ -170,9 +173,9 @@ class TransactionHistoryAccordionTest {
         showGroupedList(expandCategory = "Salary")
 
         composeTestRule.onNodeWithTag("group_header_Food").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Lunch").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Dinner").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Taxi").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_11").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_12").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_13").assertDoesNotExist()
     }
 
     @Test
@@ -180,11 +183,11 @@ class TransactionHistoryAccordionTest {
         showGroupedList(expandCategory = "Food")
 
         composeTestRule.onNodeWithTag("group_header_Food").performClick()
-        composeTestRule.onNodeWithText("Lunch").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Dinner").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_11").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("transaction_row_12").assertDoesNotExist()
 
         composeTestRule.onNodeWithTag("group_header_Transport").performClick()
-        composeTestRule.onNodeWithText("Taxi").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("transaction_row_13").assertIsDisplayed()
     }
 
     @Test
@@ -195,7 +198,7 @@ class TransactionHistoryAccordionTest {
         // forced open again, nor collapsed by it.
         composeTestRule.onNodeWithTag("group_header_Transport").performClick()
 
-        composeTestRule.onNodeWithText("Lunch").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Taxi").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("transaction_row_11").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("transaction_row_13").assertIsDisplayed()
     }
 }
