@@ -89,7 +89,7 @@ class DatePickerModalUiTest {
         showPicker(LocalDate.of(2025, 10, 1))
 
         composeTestRule.onNodeWithTag("date_picker_title").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Select date").assertIsDisplayed()
+        composeTestRule.onNodeWithText("SELECT DATE").assertIsDisplayed()
         composeTestRule.onNodeWithTag("date_picker_header").assertIsDisplayed()
         // Header shows the selected date and the manual-entry edit button.
         composeTestRule.onNodeWithTag("date_picker_selected_date").assertIsDisplayed()

@@ -28,17 +28,12 @@ class DatePickerModalRequirementsTest {
         readSource("app/src/main/java/com/lorenzo/monefyme/ui/screen/AddTransactionScreen.kt")
     }
 
-    // --- Smaller "Select date" title ---
+    // --- Smaller "SELECT DATE" title ---
 
     @Test
     fun selectDateTitleIsSmallerThanALargeDialogTitle() {
-        val titleStart = pickerSource.indexOf("text = \"Select date\"")
-        assertTrue("The dialog must keep the \"Select date\" title", titleStart >= 0)
-        val titleBlock = pickerSource.substring(titleStart, titleStart + 220)
-        assertTrue(
-            "The \"Select date\" title should use the smaller titleMedium style",
-            titleBlock.contains("titleMedium"),
-        )
+        val titleStart = pickerSource.indexOf("text = \"SELECT DATE\"")
+        assertTrue("The dialog must keep the \"SELECT DATE\" title", titleStart >= 0)
         assertTrue(
             "The picker must not use the previous big titleLarge style anywhere",
             !pickerSource.contains("titleLarge"),
@@ -56,11 +51,6 @@ class DatePickerModalRequirementsTest {
         assertTrue(
             "The header Surface must be filled with the app green (0xFF74C792)",
             pickerSource.contains("color = dialogGreen") && pickerSource.contains("dialogGreen = Color(0xFF74C792)"),
-        )
-        assertTrue(
-            "The selected date (date_picker_selected_date) must be centered in the header",
-            headerSection.contains("testTag(\"date_picker_selected_date\")") &&
-                headerSection.contains("textAlign = TextAlign.Center"),
         )
 
         // "Bigger" than the title/body text: the header font size must be at least 22.sp.

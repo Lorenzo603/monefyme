@@ -23,8 +23,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -97,7 +97,7 @@ private val weekdayLabels = listOf("M", "T", "W", "T", "F", "S", "S")
 /**
  * Custom date picker dialog used for transaction dates.
  *
- * Compared to the plain Material picker it shows a smaller "Select date" title, a green header
+ * Compared to the plain Material picker it shows a smaller "SELECT DATE" title, a green header
  * with the selected date centered and enlarged plus an edit button that opens a manual date entry
  * dialog (one dd/MM/yyyy input, validated), a month/year dropdown to jump (or cycle) to another
  * year, prev/next month buttons next to that dropdown with the calendar itself also scrollable
@@ -171,9 +171,9 @@ fun DatePickerModal(
                     ) {
                         // Smaller title than a regular dialog heading, at the header's top-left.
                         Text(
-                            text = "Select date",
+                            text = "SELECT DATE",
                             modifier = Modifier.testTag("date_picker_title"),
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.labelSmall,
                             color = Color.White,
                         )
                         Box(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
@@ -181,21 +181,20 @@ fun DatePickerModal(
                                 text = selectedDate.format(pickerHeaderFormatter),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 44.dp)
+                                    .align(Alignment.BottomStart)
                                     .testTag("date_picker_selected_date"),
                                 color = Color.White,
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
+                                fontSize = 32.sp,
+                                textAlign = TextAlign.Start,
                             )
                             IconButton(
                                 onClick = { showManualEntry = true },
                                 modifier = Modifier
-                                    .align(Alignment.CenterEnd)
+                                    .align(Alignment.BottomEnd)
                                     .testTag("date_picker_edit_button"),
                             ) {
                                 Icon(
-                                    imageVector = Icons.Outlined.Edit,
+                                    imageVector = Icons.Filled.Edit,
                                     contentDescription = "Enter date manually",
                                     tint = Color.White,
                                 )
