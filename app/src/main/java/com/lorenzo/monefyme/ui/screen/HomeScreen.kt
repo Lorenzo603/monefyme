@@ -96,6 +96,9 @@ import com.lorenzo.monefyme.ui.util.centsToDisplay
 import com.lorenzo.monefyme.ui.util.formatDate
 import com.lorenzo.monefyme.ui.util.formatMonth
 import com.lorenzo.monefyme.data.model.TransactionListItem
+import com.lorenzo.monefyme.ui.util.centsToDisplayForGroup
+import com.lorenzo.monefyme.ui.util.formatDateForDateGroupHeader
+import com.lorenzo.monefyme.ui.util.formatDateForGroup
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
@@ -548,7 +551,7 @@ private fun BalanceAndHistorySheet(
                         .fillMaxWidth()
                         .height(sheetHeightDp)
                         .testTag("history_sheet"),
-                    color = Color.White,
+                    color = Color(0xFFEAF8F2),
                 ) {
                     Column(
                         modifier = Modifier.fillMaxSize(),
@@ -848,7 +851,7 @@ internal fun TransactionGroupedList(
         if (isGroupedByCategory) {
             transactions.groupBy { it.categoryName }
         } else {
-            transactions.groupBy { formatDate(it.date) }
+            transactions.groupBy { formatDateForDateGroupHeader(it.date) }
         }
     }
 
@@ -1024,7 +1027,7 @@ private fun GroupHeader(
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = currencyAnnotatedString(
-                    text = centsToDisplay(totalAmount),
+                    text = centsToDisplayForGroup(totalAmount),
                     baseFontSize = MaterialTheme.typography.titleMedium.fontSize,
                 ),
                 style = MaterialTheme.typography.titleMedium,
@@ -1056,7 +1059,7 @@ private fun TransactionRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(start = 56.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Entry type indicator: a small dot, red for an expense and green for an income.
@@ -1074,7 +1077,7 @@ private fun TransactionRow(
             )
             Spacer(modifier = Modifier.width(16.dp))
             val amountText = currencyAnnotatedString(
-                text = centsToDisplay(transaction.amountCents, transaction.transactionType),
+                text = centsToDisplayForGroup(transaction.amountCents),
                 baseFontSize = MaterialTheme.typography.titleMedium.fontSize,
             )
             if (isGroupedByCategory) {
@@ -1087,7 +1090,7 @@ private fun TransactionRow(
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = formatDate(transaction.date),
+                    text = formatDateForGroup(transaction.date),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFF95A2A3),
                 )

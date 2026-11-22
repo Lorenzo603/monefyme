@@ -13,9 +13,17 @@ private val dateFormatter: DateTimeFormatter = DateTimeFormatter
     .ofPattern("dd/MM/uuuu", Locale.US)
     .withResolverStyle(ResolverStyle.STRICT)
 
+private val groupHeaderDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMMM", Locale.getDefault())
+        
+private val groupDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+
 private val monthFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("MMMM uuuu", Locale.getDefault())
 
 fun formatDate(date: LocalDate): String = date.format(dateFormatter)
+
+fun formatDateForDateGroupHeader(date: LocalDate): String = date.format(groupHeaderDateFormatter)
+
+fun formatDateForGroup(date: LocalDate): String = date.format(groupDateFormatter)
 
 fun parseDateOrNull(raw: String): LocalDate? {
     return runCatching {
@@ -40,12 +48,21 @@ fun centsToEditableAmountText(cents: Long): String {
     return BigDecimal(cents).movePointLeft(2).stripTrailingZeros().toPlainString()
 }
 
+fun getAmount(cents: Long): BigDecimal {
+    return BigDecimal(cents).movePointLeft(2).setScale(2, RoundingMode.HALF_UP)
+}
+
 fun centsToDisplay(cents: Long, type: TransactionType? = null): String {
-    val amount = BigDecimal(cents).movePointLeft(2).setScale(2, RoundingMode.HALF_UP)
+    val amount = getAmount(cents)
     val signPrefix = when (type) {
         TransactionType.EXPENSE -> "-"
         TransactionType.INCOME -> "+"
         null -> ""
     }
     return "$signPrefix${amount.toPlainString()}"
+}
+
+fun centsToDisplayForGroup(cents: Long): String {
+    val amount = getAmount(cents)
+    return "€${amount.toPlainString()}"
 }

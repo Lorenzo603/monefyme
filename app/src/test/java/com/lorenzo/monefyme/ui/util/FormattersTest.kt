@@ -68,6 +68,25 @@ class FormattersTest {
     }
 
     @Test
+    fun formatDateForDateGroupHeaderRendersDayAndFullMonth() {
+        assertEquals("29 October", formatDateForDateGroupHeader(LocalDate.of(2025, 10, 29)))
+        assertEquals("1 January", formatDateForDateGroupHeader(LocalDate.of(2026, 1, 1)))
+    }
+
+    @Test
+    fun formatDateForGroupRendersDayAndShortMonth() {
+        assertEquals("29 Oct", formatDateForGroup(LocalDate.of(2025, 10, 29)))
+        assertEquals("1 Jan", formatDateForGroup(LocalDate.of(2026, 1, 1)))
+    }
+
+    @Test
+    fun centsToDisplayForGroupPrefixesEuroAndShowsTwoDecimals() {
+        assertEquals("€10.00", centsToDisplayForGroup(1000L))
+        assertEquals("€12.50", centsToDisplayForGroup(1250L))
+        assertEquals("€1234.56", centsToDisplayForGroup(123456L))
+    }
+
+    @Test
     fun centsToDisplayAlwaysShowsTwoDecimals() {
         assertEquals("10", centsToDisplay(1000L).substringBefore('.'))
         assertEquals("10.00", centsToDisplay(1000L))

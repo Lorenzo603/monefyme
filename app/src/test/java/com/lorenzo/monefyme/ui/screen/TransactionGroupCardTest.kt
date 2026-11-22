@@ -65,7 +65,7 @@ class TransactionGroupCardTest {
 
         val nameIndex = header.indexOf("text = groupName")
         val badgeIndex = header.indexOf("testTag(\"group_count_\$groupName\")")
-        val totalIndex = header.indexOf("centsToDisplay(totalAmount)")
+        val totalIndex = header.indexOf("centsToDisplayForGroup(totalAmount)")
 
         assertTrue("The header must still render the group name.", nameIndex >= 0)
         assertTrue(
@@ -121,7 +121,7 @@ class TransactionGroupCardTest {
             header.contains("TransactionType.INCOME -> GroupEntryIncomeColor"),
         )
         val colorIndex = header.indexOf("groupAmountColor")
-        val totalIndex = header.indexOf("centsToDisplay(totalAmount)")
+        val totalIndex = header.indexOf("centsToDisplayForGroup(totalAmount)")
         assertTrue(
             "The total amount text must be painted with the type color.",
             colorIndex >= 0 && totalIndex < header.indexOf("color = groupAmountColor"),
@@ -165,7 +165,7 @@ class TransactionGroupCardTest {
         )
         assertTrue(
             "A category-grouped entry must show the date on the right (after the amount).",
-            categoryBranch.indexOf("amountText") < categoryBranch.indexOf("formatDate(transaction.date)"),
+            categoryBranch.indexOf("amountText") < categoryBranch.indexOf("formatDateForGroup(transaction.date)"),
         )
         assertFalse(
             "The category name must not repeat on the entry row - it is already the group name.",
@@ -225,6 +225,22 @@ class TransactionGroupCardTest {
         assertTrue(
             "The dot must come before the amount, i.e. at the left of the row.",
             dotStart >= 0 && dotStart < amountIndex,
+        )
+    }
+
+    // --- grouping keys ---------------------------------------------------------------------------
+
+    @Test
+    fun dateGroupsAreKeyedByTheGroupHeaderDateFormat() {
+        val list = functionBody("internal fun TransactionGroupedList(")
+
+        assertTrue(
+            "Date-grouped transactions must be grouped by the group-header date formatter.",
+            list.contains("transactions.groupBy { formatDateForDateGroupHeader(it.date) }"),
+        )
+        assertFalse(
+            "Date groups must not be keyed by the plain dd/mm/yyyy date format.",
+            list.contains("transactions.groupBy { formatDate("),
         )
     }
 
