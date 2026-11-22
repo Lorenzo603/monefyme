@@ -21,6 +21,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
@@ -485,25 +486,32 @@ private fun ManualDateEntryDialog(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                            .padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 6.dp),
                     ) {
                         Text(
-                            text = "Enter date",
-                            style = MaterialTheme.typography.titleMedium,
+                            text = "SELECT DATE",
+                            style = MaterialTheme.typography.labelSmall,
                             color = Color.White,
                         )
-                        Text(
-                            text = currentDate.format(pickerHeaderFormatter),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 6.dp)
-                                .testTag("manual_date_header_date"),
-                            color = Color.White,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = currentDate.format(pickerHeaderFormatter),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("manual_date_header_date"),
+                                color = Color.White,
+                                fontSize = 32.sp,
+                                textAlign = TextAlign.Start,
+                            )
+                            Icon(
+                                imageVector = Icons.Filled.CalendarToday,
+                                contentDescription = "Ok button",
+                                tint = Color.White,
+                            )
+                        }
                     }
                 }
 

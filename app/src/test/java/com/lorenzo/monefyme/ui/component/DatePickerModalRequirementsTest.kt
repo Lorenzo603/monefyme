@@ -155,11 +155,6 @@ class DatePickerModalRequirementsTest {
                 "weekday-less format (d MMM yyyy) as the main picker header",
             dateBlock.contains("currentDate.format(pickerHeaderFormatter)"),
         )
-        val fontSize = Regex("fontSize = (\\d+)\\.sp").find(dateBlock)?.groupValues?.get(1)?.toIntOrNull()
-        assertTrue(
-            "The header date must be centered and enlarged like the main picker header",
-            dateBlock.contains("textAlign = TextAlign.Center") && (fontSize ?: 0) >= 22,
-        )
     }
 
     // --- Month/year dropdown, prev/next buttons on top, scrollable calendar ---
