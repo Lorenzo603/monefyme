@@ -21,5 +21,7 @@
   "verify_env_script": "",
   "require_tests": true,
   "source_globs": [],
-  "test_globs": []
+  "test_globs": [],
+  "commit": true,
+  "push": true
 }

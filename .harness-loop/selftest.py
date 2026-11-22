@@ -19,6 +19,7 @@ Scenarios:
   E  --no-verify --no-require-tests -> the STATUS line alone decides (escape hatch)
   F  STATUS: BLOCKED -> no retry, the task waits for a human
   G  frontmatter whose closing `---` an older runner dropped, and `depends_on: nothing`
+  N  depends_on queues a task after its prerequisite in the same run instead of skipping it
   H  live-view colours: one colour per action kind, transcript/log text stays free of them
   I  end to end: --color always paints the console run, --no-color and a piped run stay plain,
      and the per-attempt log file never contains escape codes
@@ -276,6 +277,7 @@ def main() -> int:
         check("F blocked: no retry, waits for a human", scenario_f, h, failures)
         if git_available:
             check("G broken frontmatter and 'depends_on: nothing'", scenario_g, h, failures)
+        check("N depends_on: tasks queued in dependency order, not skipped", scenario_n, h, failures)
         check("H live view colours: one per action kind, logs stay plain", scenario_h, h, failures)
         check("M max_turns: session ends at a turn boundary", scenario_m, h, failures)
         check("I colour run end to end: --color always, --no-color, piped default", scenario_i, h, failures)
@@ -393,6 +395,39 @@ def scenario_g(h: Harness) -> None:
     body = (h.archived / "06-eta.md").read_text(encoding="utf-8")
     assert body.count("---") == 2, "the closing frontmatter delimiter is restored\n" + body[:400]
     assert "depends_on: nothing" in body.split("---")[1]
+
+
+def scenario_n(h: Harness) -> None:
+    def task(name: str, deps: str) -> None:
+        (h.tasks / f"{name}.md").write_text(
+            f'---\nstatus: todo\nattempts: 0\ntitle: "{name}"\ndepends_on: {deps}\n---\n\n## Task\n\n{name}\n',
+            encoding="utf-8",
+        )
+
+    task("15-dep", "[]")
+    task("16-top", "[15-dep]")       # later filename, but it depends on the earlier one
+    task("17-orphan", "[99-missing]")  # prerequisite this run can never satisfy
+
+    proc = subprocess.run(
+        [sys.executable, str(h.harness / "runner.py"), "--dry-run", "--no-verify", "--no-require-tests"],
+        cwd=str(h.repo), capture_output=True, text=True,
+    )
+    print(proc.stdout[-1800:])
+    if proc.stderr.strip():
+        print("STDERR:", proc.stderr[-300:].strip())
+    assert proc.returncode == 0, f"exit {proc.returncode}\n{proc.stdout[-600:]}\n{proc.stderr[-300:]}"
+    queue = re.search(r"task\(s\) queued: (.*)", proc.stdout)
+    assert queue, "the queue line is missing\n" + proc.stdout[-600:]
+    queued = queue.group(1)
+    assert queued.index("15-dep") < queued.index("16-top"), (
+        "16-top must be queued after its unmet prerequisite 15-dep, not skipped:\n" + queued
+    )
+    assert "skip  17-orphan" in proc.stdout and "99-missing" in proc.stdout, (
+        "a prerequisite that can never be done must still skip the task\n" + proc.stdout[-600:]
+    )
+
+    for name in ("15-dep", "16-top", "17-orphan"):
+        (h.tasks / f"{name}.md").unlink()
 
 
 # Events the colour tests feed to the live view (one block per kind of action).

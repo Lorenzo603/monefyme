@@ -281,8 +281,13 @@ mode, so it writes them there instead).
 
 ## Selection rules
 
-`todo` tasks whose `depends_on` prerequisites are `done`, in filename order. Selection
-stops at the first blocking `blocked` task unless `--keep-going-blocked` is passed.
+All `todo` tasks, queued in dependency order: before the first task starts the runner
+inspects every `depends_on` edge and places each task after the tasks it depends on, so a
+whole chain is worked in one run (ties fall back to filename order). A task is only
+skipped when a prerequisite can never be satisfied by this run — it is unknown, or stays
+`blocked`/`failed` or filtered out — in which case anything waiting on it is skipped too.
+Cycles are reported and then run in filename order rather than dropped. Selection
+stops at a `blocked` task unless `--keep-going-blocked` is passed.
 When a task finishes with `STATUS: DONE` the runner moves its file to `archived-tasks/`
 (done prerequisites there still satisfy `depends_on`), so `tasks/` only holds open work.
 
@@ -308,7 +313,7 @@ throwaway repo (its own git repo, a fake `pi`, a fake test command) and asserts 
 recorded. It never touches your tasks, sessions or logs:
 
 ```powershell
-python .harness-loop\selftest.py     # 13 scenarios, exit 0 when all pass
+python .harness-loop\selftest.py     # 14 scenarios, exit 0 when all pass
 ```
 
 | Scenario | Asserts |
@@ -320,6 +325,7 @@ python .harness-loop\selftest.py     # 13 scenarios, exit 0 when all pass
 | E | `--no-verify --no-require-tests` leaves the STATUS line in charge |
 | F | `STATUS: BLOCKED` is not retried |
 | G | a frontmatter whose closing `---` an older runner dropped is read and repaired; `depends_on: nothing` is not a prerequisite |
+| N | `depends_on`: a task with an unmet prerequisite still queues (after its prerequisite); only a never-satisfiable one is skipped |
 | H | live-view colours: one ANSI colour per action kind, `NO_COLOR`/`FORCE_COLOR`/`auto` rules, and a transcript with no escape codes |
 | I | a real runner run: `--color always` paints the console, `--no-color` and the piped default stay plain, `logs/` hold no escape codes |
 | J | `commit: true`: the harness stages and commits after a verified DONE |
