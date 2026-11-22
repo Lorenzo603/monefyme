@@ -8,7 +8,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performGesture
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.swipeLeft
@@ -272,11 +272,11 @@ class DatePickerModalUiTest {
     fun scrollingTheCalendarPagesToNeighbouringMonths() {
         showPicker(LocalDate.of(2025, 10, 1))
 
-        composeTestRule.onNodeWithTag("date_picker_calendar_pager").performGesture { swipeLeft() }
+        composeTestRule.onNodeWithTag("date_picker_calendar_pager").performTouchInput { swipeLeft() }
         composeTestRule.waitForIdle()
         assertDropdownShows(YearMonth.of(2025, 11))
 
-        composeTestRule.onNodeWithTag("date_picker_calendar_pager").performGesture { swipeRight() }
+        composeTestRule.onNodeWithTag("date_picker_calendar_pager").performTouchInput { swipeRight() }
         composeTestRule.waitForIdle()
         composeTestRule.waitForIdle()
         assertDropdownShows(YearMonth.of(2025, 10))
