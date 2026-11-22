@@ -36,6 +36,25 @@ interface TransactionDao {
     @Query(
         """
         SELECT
+            t.id,
+            t.dateEpochDay,
+            t.categoryId,
+            c.displayName AS categoryName,
+            t.amountCents,
+            t.type,
+            t.description,
+            t.account,
+            t.currency
+        FROM transactions t
+        INNER JOIN categories c ON c.id = t.categoryId
+        ORDER BY t.dateEpochDay ASC, t.id ASC
+        """,
+    )
+    suspend fun getAllWithCategoryNames(): List<TransactionListItem>
+
+    @Query(
+        """
+        SELECT
             c.displayName AS categoryName,
             SUM(t.amountCents) AS totalCents,
             c.colorArgb AS colorArgb,

@@ -15,6 +15,7 @@ import com.lorenzo.monefyme.domain.TransactionType
 import com.lorenzo.monefyme.ui.category.CategoryOrder
 import com.lorenzo.monefyme.ui.util.amountTextToCentsOrNull
 import com.lorenzo.monefyme.ui.util.parseDateOrNull
+import java.io.IOException
 import java.time.YearMonth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -63,6 +64,14 @@ class MainViewModel(
 
     private val _isImporting = MutableStateFlow(false)
     val isImporting: StateFlow<Boolean> = _isImporting.asStateFlow()
+
+    /** Number of transactions written by the last successful export, null until one runs or after a failure. */
+    private val _lastExportRowCount = MutableStateFlow<Int?>(null)
+    val lastExportRowCount: StateFlow<Int?> = _lastExportRowCount.asStateFlow()
+
+    /** Error of the last export read, kept (unlike [message]) so a screen can show it persistently. */
+    private val _lastExportError = MutableStateFlow<String?>(null)
+    val lastExportError: StateFlow<String?> = _lastExportError.asStateFlow()
 
     private val _lastImportResult = MutableStateFlow<CsvImportResult?>(null)
     val lastImportResult: StateFlow<CsvImportResult?> = _lastImportResult.asStateFlow()
@@ -269,6 +278,37 @@ class MainViewModel(
         } finally {
             _isImporting.value = false
         }
+    }
+
+    /**
+     * Exports every stored transaction (all months) as CSV bytes in the layout
+     * [com.lorenzo.monefyme.data.importer.MonefyCsvParser] reads. Failures are surfaced through
+     * [message] instead of being thrown, so the caller never sees an uncaught exception.
+     */
+    suspend fun exportCsv(): ByteArray? {
+        return try {
+            val content = repository.exportCsv()
+            val rowCount = countCsvDataRows(content)
+            _lastExportRowCount.value = rowCount
+            _lastExportError.value = null
+            _message.value = "Export complete: $rowCount rows."
+            content
+        } catch (sqlException: SQLException) {
+            reportExportFailure("Database error while exporting CSV.")
+        } catch (ioException: IOException) {
+            reportExportFailure("Could not export CSV: ${ioException.message ?: "unknown error"}.")
+        }
+    }
+
+    private fun reportExportFailure(text: String): ByteArray? {
+        _lastExportRowCount.value = null
+        _lastExportError.value = text
+        _message.value = text
+        return null
+    }
+
+    private fun countCsvDataRows(content: ByteArray): Int {
+        return content.toString(Charsets.UTF_8).count { it == '\n' } - 1
     }
 
     fun postMessage(value: String) {

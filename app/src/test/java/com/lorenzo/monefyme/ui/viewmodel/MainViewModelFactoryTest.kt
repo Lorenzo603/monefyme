@@ -36,6 +36,7 @@ class MainViewModelFactoryTest {
         override suspend fun saveTransaction(transactionId: Long?, draft: TransactionDraft) = true
         override suspend fun deleteTransaction(transactionId: Long) {}
         override suspend fun importCsv(inputStream: InputStream): CsvImportResult = CsvImportResult(0, 0, 0, 0)
+        override suspend fun exportCsv(): ByteArray = ByteArray(0)
     }
 
     @Before

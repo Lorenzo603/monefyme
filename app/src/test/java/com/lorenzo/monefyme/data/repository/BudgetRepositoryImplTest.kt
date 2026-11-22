@@ -1,5 +1,6 @@
 package com.lorenzo.monefyme.data.repository
 
+import com.lorenzo.monefyme.data.importer.MonefyCsvParser
 import com.lorenzo.monefyme.data.local.dao.CategoryDao
 import com.lorenzo.monefyme.data.local.dao.TransactionDao
 import com.lorenzo.monefyme.data.local.entity.CategoryEntity
@@ -357,6 +358,78 @@ class BudgetRepositoryImplTest {
         currency = currency,
     )
 
+    // --- CSV export ------------------------------------------------------------
+
+    @Test
+    fun exportCsvWritesHeaderAndEveryTransactionAcrossAllMonths() = runBlocking {
+        seedCategory("Food")
+        seedCategory("Salary")
+        transactionDao.queries += TransactionEntity(
+            id = 1L,
+            dateEpochDay = LocalDate.of(2026, 11, 3).toEpochDay(),
+            categoryId = 1L,
+            amountCents = 5_000L,
+            type = "EXPENSE",
+            description = "Lunch",
+            account = "Cash",
+            currency = "EUR",
+        )
+        transactionDao.queries += TransactionEntity(
+            id = 2L,
+            dateEpochDay = LocalDate.of(2016, 2, 1).toEpochDay(),
+            categoryId = 2L,
+            amountCents = 100_000L,
+            type = "INCOME",
+            description = "",
+            account = "Bank",
+            currency = "",
+        )
+
+        val csv = repository.exportCsv().toString(Charsets.UTF_8)
+
+        assertEquals(
+            "date,account,category,amount,currency,converted amount,currency,description\n" +
+                "01/02/2016,Bank,Salary,1000,EUR,1000,EUR,\n" +
+                "03/11/2026,Cash,Food,-50,EUR,-50,EUR,Lunch\n",
+            csv,
+        )
+    }
+
+    @Test
+    fun exportCsvOfEmptyDatabaseIsAHeaderOnlyFile() = runBlocking {
+        assertEquals(
+            "date,account,category,amount,currency,converted amount,currency,description\n",
+            repository.exportCsv().toString(Charsets.UTF_8),
+        )
+    }
+
+    @Test
+    fun exportCsvRoundTripsThroughTheRealParser() = runBlocking {
+        val csv = listOf(
+            "date,account,category,amount,currency,converted amount,currency,description",
+            "01/02/2016,Cash,Eating out,-50,EUR,-50,EUR,Cumulative",
+            "05/02/2016,Cash,Food,-36,EUR,-36,EUR,\"Lunch, with friends\"",
+            "09/02/2016,Bank,Salary,1200.75,USD,1200.75,USD,\"He said \"\"hi\"\"\"",
+        ).joinToString("\n")
+        repository.importCsv(csv.byteInputStream())
+
+        val exported = repository.exportCsv().toString(Charsets.UTF_8)
+        val reParsed = MonefyCsvParser().parse(exported.byteInputStream())
+        val original = MonefyCsvParser().parse(csv.byteInputStream())
+
+        assertEquals(0, reParsed.invalidRows)
+        assertEquals(original.rows.size, reParsed.rows.size)
+        original.rows.forEachIndexed { index, expected ->
+            val actual = reParsed.rows[index]
+            assertEquals(expected.date, actual.date)
+            assertEquals(expected.account, actual.account)
+            assertEquals(expected.category, actual.category)
+            assertEquals(0, expected.amount.compareTo(actual.amount))
+            assertEquals(expected.currency, actual.currency)
+            assertEquals(expected.description, actual.description)
+        }
+    }
+
     // --- fakes -----------------------------------------------------------------
 
     private class FakeCategoryDao : CategoryDao {
@@ -463,5 +536,23 @@ class BudgetRepositoryImplTest {
         override suspend fun findById(id: Long): TransactionEntity? = queries.firstOrNull { it.id == id }
 
         override suspend fun count(): Int = queries.size
+
+        override suspend fun getAllWithCategoryNames(): List<TransactionListItem> =
+            queries
+                .sortedWith(compareBy<TransactionEntity> { it.dateEpochDay }.thenBy { it.id })
+                .mapNotNull { transaction ->
+                    val category = categoryDao.stored.firstOrNull { it.id == transaction.categoryId } ?: return@mapNotNull null
+                    TransactionListItem(
+                        id = transaction.id,
+                        dateEpochDay = transaction.dateEpochDay,
+                        categoryId = transaction.categoryId,
+                        categoryName = category.displayName,
+                        amountCents = transaction.amountCents,
+                        type = transaction.type,
+                        description = transaction.description,
+                        account = transaction.account,
+                        currency = transaction.currency,
+                    )
+                }
     }
 }

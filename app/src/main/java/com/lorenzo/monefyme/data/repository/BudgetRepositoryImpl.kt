@@ -1,6 +1,7 @@
 package com.lorenzo.monefyme.data.repository
 
 import android.database.SQLException
+import com.lorenzo.monefyme.data.importer.MonefyCsvExporter
 import com.lorenzo.monefyme.data.importer.MonefyCsvParser
 import com.lorenzo.monefyme.data.local.dao.CategoryDao
 import com.lorenzo.monefyme.data.local.dao.TransactionDao
@@ -25,6 +26,7 @@ class BudgetRepositoryImpl(
     private val categoryDao: CategoryDao,
     private val transactionDao: TransactionDao,
     private val csvParser: MonefyCsvParser = MonefyCsvParser(),
+    private val csvExporter: MonefyCsvExporter = MonefyCsvExporter(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : BudgetRepository {
 
@@ -183,6 +185,12 @@ class BudgetRepositoryImpl(
                 duplicateRows = duplicateRows,
                 invalidRows = invalidRows,
             )
+        }
+    }
+
+    override suspend fun exportCsv(): ByteArray {
+        return withContext(ioDispatcher) {
+            csvExporter.export(transactionDao.getAllWithCategoryNames())
         }
     }
 

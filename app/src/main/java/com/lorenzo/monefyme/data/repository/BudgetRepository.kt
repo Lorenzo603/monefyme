@@ -20,4 +20,5 @@ interface BudgetRepository {
     suspend fun saveTransaction(transactionId: Long?, draft: TransactionDraft): Boolean
     suspend fun deleteTransaction(transactionId: Long)
     suspend fun importCsv(inputStream: InputStream): CsvImportResult
+    suspend fun exportCsv(): ByteArray
 }

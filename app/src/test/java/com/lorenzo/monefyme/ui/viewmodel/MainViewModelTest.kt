@@ -1,5 +1,6 @@
 package com.lorenzo.monefyme.ui.viewmodel
 
+import com.lorenzo.monefyme.data.importer.MonefyCsvExporter
 import com.lorenzo.monefyme.data.model.CategoryItem
 import com.lorenzo.monefyme.data.model.ExpenseSlice
 import com.lorenzo.monefyme.data.model.TransactionListItem
@@ -322,6 +323,69 @@ class MainViewModelTest {
         assertFalse(vm.isImporting.value)
     }
 
+    // --- CSV export ------------------------------------------------------------
+
+    @Test
+    fun exportCsvReturnsContentAndReportsRowCount() = runTest(testDispatcher) {
+        val vm = viewModel()
+        repository.exportedCsv = "header\nrow1\nrow2\n".toByteArray()
+
+        val content = vm.exportCsv()
+
+        assertNotNull(content)
+        assertEquals(2, vm.lastExportRowCount.value)
+        assertEquals("Export complete: 2 rows.", vm.message.value)
+    }
+
+    @Test
+    fun exportCsvOfEmptyDatasetReportsZeroRows() = runTest(testDispatcher) {
+        val vm = viewModel()
+        repository.exportedCsv = "header\n".toByteArray()
+
+        assertNotNull(vm.exportCsv())
+
+        assertEquals(0, vm.lastExportRowCount.value)
+        assertEquals("Export complete: 0 rows.", vm.message.value)
+    }
+
+    @Test
+    fun exportCsvFailureIsSurfacedAsMessageWithoutThrowing() = runTest(testDispatcher) {
+        val vm = viewModel()
+        repository.exportCsvError = java.io.IOException("db unreadable")
+
+        assertNull(vm.exportCsv())
+
+        assertNull(vm.lastExportRowCount.value)
+        assertEquals("Could not export CSV: db unreadable.", vm.message.value)
+        assertEquals("Could not export CSV: db unreadable.", vm.lastExportError.value)
+    }
+
+    @Test
+    fun exportCsvReportsDatabaseError() = runTest(testDispatcher) {
+        val vm = viewModel()
+        repository.exportCsvError = android.database.SQLException("db boom")
+
+        assertNull(vm.exportCsv())
+
+        assertNull(vm.lastExportRowCount.value)
+        assertEquals("Database error while exporting CSV.", vm.message.value)
+        assertEquals("Database error while exporting CSV.", vm.lastExportError.value)
+    }
+
+    @Test
+    fun successfulExportClearsThePreviousExportError() = runTest(testDispatcher) {
+        val vm = viewModel()
+        repository.exportCsvError = java.io.IOException("boom")
+        vm.exportCsv()
+
+        repository.exportCsvError = null
+        repository.exportedCsv = "header\nrow1\n".toByteArray()
+        vm.exportCsv()
+
+        assertNull(vm.lastExportError.value)
+        assertEquals(1, vm.lastExportRowCount.value)
+    }
+
     // --- messages --------------------------------------------------------------
 
     @Test
@@ -519,6 +583,9 @@ class MainViewModelTest {
         var deleteCategoryError: Throwable? = null
         var csvImportResult: CsvImportResult? = null
         var csvImportError: Throwable? = null
+        var exportedCsv: ByteArray? = null
+        var exportCsvError: Throwable? = null
+
 
         fun transactionsFlow(month: YearMonth) = transactionsFlows.getOrPut(month) { MutableStateFlow(emptyList()) }
 
@@ -571,6 +638,11 @@ class MainViewModelTest {
             }
             csvImportError?.let { throw it }
             return csvImportResult ?: CsvImportResult(0, 0, 0, 0)
+        }
+
+        override suspend fun exportCsv(): ByteArray {
+            exportCsvError?.let { throw it }
+            return exportedCsv ?: MonefyCsvExporter().export(emptyList())
         }
     }
 }

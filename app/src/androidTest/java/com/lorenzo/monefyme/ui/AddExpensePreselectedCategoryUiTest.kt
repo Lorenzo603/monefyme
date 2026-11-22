@@ -145,5 +145,8 @@ class AddExpensePreselectedCategoryUiTest {
 
         override suspend fun importCsv(inputStream: InputStream): CsvImportResult =
             throw UnsupportedOperationException("not used by the add-expense screen")
+
+        override suspend fun exportCsv(): ByteArray =
+            throw UnsupportedOperationException("not used by the add-expense screen")
     }
 }

@@ -131,5 +131,8 @@ class TransactionHistoryTitleTest {
 
         override suspend fun importCsv(inputStream: InputStream): CsvImportResult =
             throw UnsupportedOperationException("not used by the transaction history screen")
+
+        override suspend fun exportCsv(): ByteArray =
+            throw UnsupportedOperationException("not used by the transaction history screen")
     }
 }
