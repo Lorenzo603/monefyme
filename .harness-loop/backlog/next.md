@@ -9,8 +9,5 @@ depends_on: nothing
 ## Task
 
 
-improve graphics of groupings by category and date in transaction history.
-
-improve graphics of date picker in add transactions
-
+add timestamp up to millis for export naming to avoid conflicts
 
