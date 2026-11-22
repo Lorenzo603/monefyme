@@ -103,6 +103,28 @@ class DatePickerModalRequirementsTest {
     }
 
     @Test
+    fun headerEditButtonIsVerticallyAlignedWithTheSelectedDate() {
+        val headerStart = pickerSource.indexOf("testTag(\"date_picker_header\")")
+        val dateTag = pickerSource.indexOf("testTag(\"date_picker_selected_date\")", headerStart)
+        val editTag = pickerSource.indexOf("testTag(\"date_picker_edit_button\")", dateTag)
+        assertTrue("The header must show the selected date", dateTag >= 0)
+        assertTrue("The header must expose an edit button", editTag > dateTag)
+
+        val rowStart = pickerSource.lastIndexOf("Row(", dateTag)
+        assertTrue(
+            "The date and the edit button must be laid out in one shared row inside the header",
+            rowStart >= headerStart && rowStart < dateTag,
+        )
+        val sharedRow = pickerSource.substring(rowStart, editTag)
+        assertTrue(
+            "The edit button must share the date's vertical center, not be bottom-aligned to it",
+            sharedRow.contains("verticalAlignment = Alignment.CenterVertically") &&
+                !sharedRow.contains("Alignment.BottomEnd") &&
+                !sharedRow.contains("Alignment.BottomStart"),
+        )
+    }
+
+    @Test
     fun manualModalShowsAGreenHeaderWithTheDateBeingEdited() {
         // The parent picker hands the date currently selected in it down to the manual modal.
         val callStart = pickerSource.indexOf("ManualDateEntryDialog(")

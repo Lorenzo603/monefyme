@@ -167,7 +167,7 @@ fun DatePickerModal(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 20.dp, end = 6.dp, top = 14.dp, bottom = 12.dp),
+                            .padding(start = 20.dp, end = 6.dp, top = 14.dp, bottom = 6.dp),
                     ) {
                         // Smaller title than a regular dialog heading, at the header's top-left.
                         Text(
@@ -176,12 +176,14 @@ fun DatePickerModal(
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White,
                         )
-                        Box(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
                             Text(
                                 text = selectedDate.format(pickerHeaderFormatter),
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .align(Alignment.BottomStart)
+                                    .weight(1f)
                                     .testTag("date_picker_selected_date"),
                                 color = Color.White,
                                 fontSize = 32.sp,
@@ -190,7 +192,6 @@ fun DatePickerModal(
                             IconButton(
                                 onClick = { showManualEntry = true },
                                 modifier = Modifier
-                                    .align(Alignment.BottomEnd)
                                     .testTag("date_picker_edit_button"),
                             ) {
                                 Icon(
