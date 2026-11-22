@@ -12,7 +12,7 @@ import com.lorenzo.monefyme.ui.viewmodel.MainViewModelFactory
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels {
         val app = application as MonefyMeApp
-        MainViewModelFactory(app.repository)
+        MainViewModelFactory(app.repository, app.driveBackup)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

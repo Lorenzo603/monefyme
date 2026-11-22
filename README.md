@@ -61,6 +61,26 @@ To restore your historical file:
 2. In app, from Home use the right side-menu button near Balance to open **Restore**.
 3. Tap **Select CSV file** and choose the file.
 
+## Back up to Google Drive (human configuration required)
+The Restore screen has a **Back up to Google Drive** button: it exports the same CSV as **Export to CSV**
+(all months, same 8-column layout) and uploads it, byte-identical, to the **root of My Drive** as
+`Monefy.Backup.yyyy-MM-dd.csv` (MIME type `text/csv`). Sign-in uses Google Credential Manager
+authorization (Play Services Auth) with the `https://www.googleapis.com/auth/drive.file` scope;
+once granted, Play Services re-authorizes silently after restarts, and the account name is
+remembered in DataStore for the UI. Cancelled/denied sign-in, upload failure, and an empty dataset
+are reported as messages (no crash). The feature is **disabled** until a human configures it:
+
+1. In a Google Cloud project, enable the **Google Drive API**.
+2. Create an **OAuth client ID** of type *Web application* and register this app's package
+   (`com.lorenzo.monefyme`) and signing certificate SHA-1 (Android service); add the authorized
+   origin/redirect as needed for the OAuth consent screen.
+3. Put the client ID into the gitignored `local.properties`:
+   `google.oauth.client.id=<client-id>.apps.googleusercontent.com`
+   (or pass `-PGOOGLE_OAUTH_CLIENT_ID=<client-id>` to Gradle).
+
+No client secret or API key is needed or may be committed. Without the entry, the app keeps working
+and the Drive button simply reports "Google Drive backup is not configured on this build."
+
 ## Tests
 - Unit tests:
   - CSV parser coverage

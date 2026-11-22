@@ -1,5 +1,10 @@
 package com.lorenzo.monefyme.ui.viewmodel
 
+import androidx.activity.result.IntentSenderRequest
+import android.content.Intent
+import com.lorenzo.monefyme.data.backup.DriveAuthResult
+import com.lorenzo.monefyme.data.backup.DriveBackup
+import com.lorenzo.monefyme.data.backup.DriveBackupResult
 import com.lorenzo.monefyme.data.importer.MonefyCsvExporter
 import com.lorenzo.monefyme.data.model.CategoryItem
 import com.lorenzo.monefyme.data.model.ExpenseSlice
@@ -45,6 +50,136 @@ class MainViewModelTest {
     }
 
     private fun viewModel(): MainViewModel = MainViewModel(repository)
+
+    private fun viewModelWithDrive(backup: DriveBackup): MainViewModel = MainViewModel(repository, backup)
+
+    // --- Google Drive backup --------------------------------------------------------
+
+    @Test
+    fun driveBackupReportsNotConfiguredWhenNoBackupWasInjected() = runTest(testDispatcher) {
+        val vm = viewModel()
+
+        vm.backupToGoogleDrive()
+
+        assertEquals("Google Drive backup is not configured on this build.", vm.message.value)
+        assertFalse(vm.driveBackupConfigured)
+        assertFalse(vm.isBackingUpToDrive.value)
+    }
+
+    @Test
+    fun driveBackupSuccessIsReportedWithFileNameAndRowCount() = runTest(testDispatcher) {
+        val backup = FakeDriveBackup()
+        backup.nextResult = DriveBackupResult.Success("Monefy.Backup.2026-02-03.csv", 12, 2_048)
+        val vm = viewModelWithDrive(backup)
+
+        vm.backupToGoogleDrive()
+
+        assertEquals(
+            "Google Drive backup complete: Monefy.Backup.2026-02-03.csv (12 rows, 2048 bytes).",
+            vm.message.value,
+        )
+        assertEquals(1, backup.backupCalls)
+        assertFalse(vm.isBackingUpToDrive.value)
+    }
+
+    @Test
+    fun driveBackupSignInCancellationIsReportedAsMessage() = runTest(testDispatcher) {
+        val backup = FakeDriveBackup()
+        backup.nextResult = DriveBackupResult.SignInCancelled
+        val vm = viewModelWithDrive(backup)
+
+        vm.backupToGoogleDrive()
+
+        assertEquals("Sign-in cancelled, so nothing was uploaded to Google Drive.", vm.message.value)
+        assertFalse(vm.isBackingUpToDrive.value)
+    }
+
+    @Test
+    fun driveBackupSignInFailureKeepsTheReason() = runTest(testDispatcher) {
+        val backup = FakeDriveBackup()
+        backup.nextResult = DriveBackupResult.SignInFailed("account removed")
+        val vm = viewModelWithDrive(backup)
+
+        vm.backupToGoogleDrive()
+
+        assertEquals("Google sign-in failed: account removed", vm.message.value)
+    }
+
+    @Test
+    fun driveBackupUploadFailureIsReportedAsMessage() = runTest(testDispatcher) {
+        val backup = FakeDriveBackup()
+        backup.nextResult = DriveBackupResult.UploadFailed("HTTP 500")
+        val vm = viewModelWithDrive(backup)
+
+        vm.backupToGoogleDrive()
+
+        assertEquals("Google Drive upload failed: HTTP 500", vm.message.value)
+    }
+
+    @Test
+    fun driveBackupEmptyDatasetIsReportedAsMessage() = runTest(testDispatcher) {
+        val backup = FakeDriveBackup()
+        backup.nextResult = DriveBackupResult.EmptyDataset
+        val vm = viewModelWithDrive(backup)
+
+        vm.backupToGoogleDrive()
+
+        assertEquals("No transactions to back up, so nothing was uploaded to Google Drive.", vm.message.value)
+    }
+
+    @Test
+    fun driveBackupExportFailureReasonIsUsedAsMessage() = runTest(testDispatcher) {
+        val backup = FakeDriveBackup()
+        backup.nextResult = DriveBackupResult.ExportFailed("Database error while exporting CSV.")
+        val vm = viewModelWithDrive(backup)
+
+        vm.backupToGoogleDrive()
+
+        assertEquals("Database error while exporting CSV.", vm.message.value)
+    }
+
+    @Test
+    fun driveBackupThrowingBackupIsReportedWithoutPropagating() = runTest(testDispatcher) {
+        val backup = FakeDriveBackup()
+        backup.throwOnBackup = IllegalStateException("boom")
+        val vm = viewModelWithDrive(backup)
+
+        vm.backupToGoogleDrive()
+
+        assertEquals("Google Drive backup failed: boom.", vm.message.value)
+        assertFalse(vm.isBackingUpToDrive.value)
+    }
+
+    @Test
+    fun driveBackupIgnoresOverlappingRuns() = runTest(testDispatcher) {
+        val backup = FakeDriveBackup()
+        val vm = viewModelWithDrive(backup)
+        backup.onBackup = { vm.backupToGoogleDrive() }
+        backup.nextResult = DriveBackupResult.SignInCancelled
+
+        vm.backupToGoogleDrive()
+
+        assertEquals("Second, overlapping runs must be ignored.", 1, backup.backupCalls)
+    }
+
+    @Test
+    fun driveAccountFlowsFromTheBackupSessionStore() = runTest(testDispatcher) {
+        val backup = FakeDriveBackup()
+        backup.accountFlow.value = "user@example.com"
+        val vm = viewModelWithDrive(backup)
+
+        assertEquals("user@example.com", vm.driveAccount.first { it != null })
+    }
+
+    @Test
+    fun resolveDriveConsentIsForwardedToTheBackup() = runTest(testDispatcher) {
+        val backup = FakeDriveBackup()
+        val vm = viewModelWithDrive(backup)
+
+        vm.resolveDriveConsent(null)
+
+        assertTrue(backup.resolvedWithNull)
+    }
 
     // --- month navigation ------------------------------------------------------
 
@@ -557,6 +692,31 @@ class MainViewModelTest {
         account = "Cash",
         currency = "EUR",
     )
+
+    private class FakeDriveBackup : DriveBackup {
+        var nextResult: DriveBackupResult = DriveBackupResult.SignInCancelled
+        var throwOnBackup: Throwable? = null
+        var onBackup: (suspend () -> Unit)? = null
+        var backupCalls = 0
+        var resolvedWithNull = false
+        val accountFlow = MutableStateFlow<String?>(null)
+        override val signedInAccount: Flow<String?> = accountFlow
+        override val pendingConsent = MutableStateFlow<IntentSenderRequest?>(null)
+
+        override suspend fun backup(): DriveBackupResult {
+            backupCalls += 1
+            onBackup?.let { action ->
+                onBackup = null
+                action()
+            }
+            throwOnBackup?.let { throw it }
+            return nextResult
+        }
+
+        override fun resolveConsent(data: Intent?) {
+            resolvedWithNull = data == null
+        }
+    }
 
     private class FakeBudgetRepository : BudgetRepository {
         val categoryNamesFlow = MutableStateFlow<List<String>>(emptyList())

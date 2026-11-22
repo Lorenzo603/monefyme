@@ -1,8 +1,12 @@
 package com.lorenzo.monefyme.ui.viewmodel
 
+import androidx.activity.result.IntentSenderRequest
 import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.lorenzo.monefyme.data.backup.DriveBackup
+import com.lorenzo.monefyme.data.backup.DriveBackupResult
 import com.lorenzo.monefyme.data.repository.BudgetRepository
 import com.lorenzo.monefyme.data.model.CategoryItem
 import com.lorenzo.monefyme.data.model.ExpenseSlice
@@ -14,12 +18,17 @@ import java.time.YearMonth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -55,6 +64,30 @@ class MainViewModelFactoryTest {
         val viewModel = factory.create(MainViewModel::class.java)
 
         assertNotNull("ViewModel should not be null", viewModel)
+    }
+
+    @Test
+    fun viewModelWithoutDriveBackupReportsNotConfigured() = runTest {
+        val viewModel = MainViewModelFactory(repository).create(MainViewModel::class.java)
+
+        assertFalse(viewModel.driveBackupConfigured)
+        viewModel.backupToGoogleDrive()
+        assertEquals("Google Drive backup is not configured on this build.", viewModel.message.value)
+    }
+
+    @Test
+    fun factoryPassesTheDriveBackupToTheViewModel() = runTest {
+        val backup = object : DriveBackup {
+            override val signedInAccount: Flow<String?> = emptyFlow()
+            override val pendingConsent = MutableStateFlow<IntentSenderRequest?>(null)
+            override suspend fun backup(): DriveBackupResult = DriveBackupResult.SignInCancelled
+            override fun resolveConsent(data: Intent?) {}
+        }
+        val viewModel = MainViewModelFactory(repository, backup).create(MainViewModel::class.java)
+
+        assertTrue(viewModel.driveBackupConfigured)
+        viewModel.backupToGoogleDrive()
+        assertEquals("Sign-in cancelled, so nothing was uploaded to Google Drive.", viewModel.message.value)
     }
 
     @Test(expected = IllegalArgumentException::class)

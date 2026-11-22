@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Button
@@ -26,11 +27,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -56,6 +59,9 @@ fun RestoreScreen(
     val isImporting by viewModel.isImporting.collectAsStateWithLifecycle()
     val exportRowCount by viewModel.lastExportRowCount.collectAsStateWithLifecycle()
     val exportError by viewModel.lastExportError.collectAsStateWithLifecycle()
+    val isBackingUpToDrive by viewModel.isBackingUpToDrive.collectAsStateWithLifecycle()
+    val driveAccount by viewModel.driveAccount.collectAsStateWithLifecycle()
+    val driveConsentRequest by viewModel.drivePendingConsent.collectAsStateWithLifecycle()
     var writeError by remember { mutableStateOf<String?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) {
@@ -88,6 +94,17 @@ fun RestoreScreen(
                 writeError = failure
                 viewModel.postMessage(failure)
             }
+        }
+    }
+    val driveConsentLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult(),
+    ) { activityResult ->
+        // A null result data means the user dismissed the Google sign-in prompt.
+        viewModel.resolveDriveConsent(activityResult.data)
+    }
+    LaunchedEffect(driveConsentRequest) {
+        driveConsentRequest?.let { intentSenderRequest ->
+            driveConsentLauncher.launch(intentSenderRequest)
         }
     }
 
@@ -144,6 +161,49 @@ fun RestoreScreen(
                     Text("Export to CSV")
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Google Drive backup",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Backs up every stored transaction to the root of your Google Drive " +
+                    "(My Drive) as Monefy.Backup.yyyy-MM-dd.csv, using the same CSV layout as the export.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(
+                    onClick = {
+                        scope.launch { viewModel.backupToGoogleDrive() }
+                    },
+                    enabled = !isBackingUpToDrive,
+                ) {
+                    Text("Back up to Google Drive")
+                }
+                if (isBackingUpToDrive) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 3.dp,
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            val rememberedDriveAccount = driveAccount
+            Text(
+                text = if (rememberedDriveAccount != null) {
+                    "Signed in as $rememberedDriveAccount for Google Drive backups."
+                } else {
+                    "Signs in with your Google account when needed and uploads the CSV to My Drive."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
 
             Spacer(modifier = Modifier.height(12.dp))
             val exportFailure = writeError ?: exportError

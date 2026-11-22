@@ -1,6 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Package visibility for the Google sign-in authorization flow (Google Play Services). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data
+                android:host="accounts.google.com"
+                android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data
+                android:host="www.google.com"
+                android:path="/accounts/oauthorization8"
+                android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data
+                android:host="gds.google.com"
+                android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data
+                android:host="gmpapps-pa.googleapis.com"
+                android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="com.google.android.gms.auth.api.signin.AUTHORIZATION" />
+        </intent>
+    </queries>
+
     <application
         android:name=".MonefyMeApp"
         android:allowBackup="true"

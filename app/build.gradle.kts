@@ -1,9 +1,26 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.kapt")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+// Google Drive backup configuration (human-provided, never committed):
+// put `google.oauth.client.id=<web client id>` in the gitignored local.properties, or pass
+// -PGOOGLE_OAUTH_CLIENT_ID=<web client id>. When absent, the Drive backup stays disabled.
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
+}
+val googleOAuthClientId = (localProperties.getProperty("google.oauth.client.id")
+    ?: providers.gradleProperty("GOOGLE_OAUTH_CLIENT_ID").getOrNull()
+    ?: "")
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
 
 android {
     namespace = "com.lorenzo.monefyme"
@@ -16,6 +33,7 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "GOOGLE_OAUTH_CLIENT_ID", "\"$googleOAuthClientId\"")
     }
 
     buildTypes {
@@ -45,6 +63,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
@@ -84,6 +103,9 @@ dependencies {
     // Jetpack DataStore for preferences persistence
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // Google sign-in (Credential Manager authorization) for the Google Drive backup
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
 
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

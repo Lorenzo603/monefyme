@@ -1,8 +1,12 @@
 package com.lorenzo.monefyme.ui.viewmodel
 
+import androidx.activity.result.IntentSenderRequest
+import android.content.Intent
 import android.database.SQLException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lorenzo.monefyme.data.backup.DriveBackup
+import com.lorenzo.monefyme.data.backup.DriveBackupResult
 import com.lorenzo.monefyme.data.local.getGroupByCategoryFlow
 import com.lorenzo.monefyme.data.local.saveGroupByCategory
 import com.lorenzo.monefyme.data.model.CategoryItem
@@ -31,6 +35,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(
     private val repository: BudgetRepository,
+    private val driveBackup: DriveBackup? = null,
 ) : ViewModel() {
     /**
      * Whether transactions should be grouped by category (true) or by date (false).
@@ -75,6 +80,22 @@ class MainViewModel(
 
     private val _lastImportResult = MutableStateFlow<CsvImportResult?>(null)
     val lastImportResult: StateFlow<CsvImportResult?> = _lastImportResult.asStateFlow()
+
+    private val _isBackingUpToDrive = MutableStateFlow(false)
+    val isBackingUpToDrive: StateFlow<Boolean> = _isBackingUpToDrive.asStateFlow()
+
+    /** Whether this build carries a Google OAuth client id and the Drive backup can therefore run. */
+    val driveBackupConfigured: Boolean = driveBackup != null
+
+    /** Remembered Google account used for Drive backups (survives process restarts), null when never signed in. */
+    val driveAccount: StateFlow<String?> = driveBackup
+        ?.signedInAccount
+        ?.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        ?: MutableStateFlow<String?>(null).asStateFlow()
+
+    /** Non-null while the Google consent UI must be launched by the Restore screen. */
+    val drivePendingConsent: StateFlow<IntentSenderRequest?> = driveBackup?.pendingConsent
+        ?: MutableStateFlow<IntentSenderRequest?>(null).asStateFlow()
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
@@ -309,6 +330,52 @@ class MainViewModel(
 
     private fun countCsvDataRows(content: ByteArray): Int {
         return content.toString(Charsets.UTF_8).count { it == '\n' } - 1
+    }
+
+    /**
+     * Runs the "Back up to Google Drive" flow: the same CSV as [exportCsv] is uploaded to the
+     * root of the user's My Drive as `Monefy.Backup.yyyy-MM-dd.csv`. Not configured, sign-in
+     * cancellation/denial, empty dataset, and upload failures are all reported through [message];
+     * nothing is thrown at the caller.
+     */
+    suspend fun backupToGoogleDrive() {
+        if (_isBackingUpToDrive.value) return
+
+        val backup = driveBackup
+        if (backup == null) {
+            _message.value = "Google Drive backup is not configured on this build."
+            return
+        }
+
+        _isBackingUpToDrive.value = true
+        _message.value = try {
+            describeDriveBackupResult(backup.backup())
+        } catch (cancellation: kotlinx.coroutines.CancellationException) {
+            throw cancellation
+        } catch (unexpected: Exception) {
+            "Google Drive backup failed: ${unexpected.message ?: "unknown error"}."
+        } finally {
+            _isBackingUpToDrive.value = false
+        }
+    }
+
+    /** Hands the consent activity result (null = the user dismissed it) back to a suspended backup. */
+    fun resolveDriveConsent(data: Intent?) {
+        driveBackup?.resolveConsent(data)
+    }
+
+    private fun describeDriveBackupResult(result: DriveBackupResult): String {
+        return when (result) {
+            is DriveBackupResult.Success ->
+                "Google Drive backup complete: ${result.fileName} (${result.rowCount} rows, ${result.byteCount} bytes)."
+            DriveBackupResult.EmptyDataset ->
+                "No transactions to back up, so nothing was uploaded to Google Drive."
+            is DriveBackupResult.ExportFailed -> result.reason
+            DriveBackupResult.SignInCancelled ->
+                "Sign-in cancelled, so nothing was uploaded to Google Drive."
+            is DriveBackupResult.SignInFailed -> "Google sign-in failed: ${result.reason}"
+            is DriveBackupResult.UploadFailed -> "Google Drive upload failed: ${result.reason}"
+        }
     }
 
     fun postMessage(value: String) {
