@@ -286,6 +286,58 @@ class DatePickerModalRequirementsTest {
         )
     }
 
+    @Test
+    fun weekdayHeaderRendersOnceAboveThePagerAtAFixedHeight() {
+        val headerIndex = pickerSource.indexOf("testTag(\"date_picker_weekday_header\")")
+        assertTrue(
+            "The weekday header must exist (date_picker_weekday_header)",
+            headerIndex >= 0,
+        )
+        assertTrue(
+            "The weekday header must be rendered exactly once, above the pager (not inside it)",
+            pickerSource.split("testTag(\"date_picker_weekday_header\")").size - 1 == 1,
+        )
+
+        // The WeekdayHeader composable is called once before the pager in the calendar branch.
+        val headerCallIndex = pickerSource.indexOf("WeekdayHeader()")
+        val pagerCallIndex = pickerSource.indexOf("HorizontalPager(")
+        assertTrue("The calendar pager must exist", pagerCallIndex >= 0)
+        assertTrue(
+            "The weekday header must sit above the calendar pager",
+            headerCallIndex >= 0 && headerCallIndex < pagerCallIndex,
+        )
+
+        // The header must use a fixed height, not depend on the month's row count.
+        val headerBlock = pickerSource.substring(headerIndex - 400, headerIndex + 400)
+        assertTrue(
+            "The weekday header must use a fixed height (a shared WeekdayHeaderHeight constant)",
+            pickerSource.contains("private val WeekdayHeaderHeight = ") &&
+                pickerSource.lines().firstOrNull { it.contains("private val WeekdayHeaderHeight") }
+                    ?.let { Regex("= ([0-9]+)").find(it)?.groupValues?.get(1)?.toIntOrNull() } != null &&
+                headerBlock.contains(".height(WeekdayHeaderHeight)"),
+        )
+
+        // The header must not scroll with the months: it lives outside CalendarMonthPage.
+        val pageStart = pickerSource.indexOf("private fun CalendarMonthPage(")
+        val pageEnd = pickerSource.indexOf("private fun WeekdayHeader(").let { end ->
+            if (end > pageStart) end else pickerSource.indexOf("private fun ManualDateEntryDialog(", pageStart)
+        }
+        val pageSource = pickerSource.substring(pageStart, pageEnd)
+        assertTrue(
+            "CalendarMonthPage must not render the weekday header row",
+            !pageSource.contains("weekdayLabels") && !pageSource.contains("date_picker_weekday_header"),
+        )
+
+        // The header must be hidden while the year menu replaces the calendar: it lives in the
+        // else branch of the showYearMenu conditional, not in the year-grid branch.
+        val yearMenuBranchStart = pickerSource.indexOf("if (showYearMenu)")
+        val elseBranchStart = pickerSource.indexOf("} else {", yearMenuBranchStart)
+        assertTrue(
+            "The weekday header must render only when the calendar is visible (inside the else branch)",
+            headerCallIndex > elseBranchStart && headerCallIndex < pagerCallIndex,
+        )
+    }
+
     // --- Full-bleed green header, tighter corners, compact date format ---
 
     @Test

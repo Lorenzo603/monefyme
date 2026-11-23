@@ -96,6 +96,9 @@ private val pickerHeaderFormatter: DateTimeFormatter =
 // Weekday column headers, matching the Monday-first grid the calendar pages render.
 private val weekdayLabels = listOf("M", "T", "W", "T", "F", "S", "S")
 
+// Fixed height of the single weekday header rendered above the pager, independent of the month.
+private val WeekdayHeaderHeight = 26.dp
+
 /**
  * Custom date picker dialog used for transaction dates.
  *
@@ -272,6 +275,7 @@ fun DatePickerModal(
                         },
                     )
                 } else {
+                    WeekdayHeader()
                     HorizontalPager(
                         state = pagerState,
                         modifier = Modifier
@@ -389,7 +393,41 @@ private fun YearPickerMenu(
     }
 }
 
-/** One calendar page: weekday headers plus a month grid of roomy, evenly spaced day buttons. */
+/**
+ * The weekday header row (M T W T F S S), rendered once above the calendar pager at a fixed
+ * height so it does not scroll with the months and never changes height between them. It is
+ * rendered only while the calendar is visible (it is hidden while the year menu replaces it).
+ */
+@Composable
+private fun WeekdayHeader() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(WeekdayHeaderHeight)
+            .padding(start = 24.dp, end = 24.dp, top = 8.dp)
+            .testTag("date_picker_weekday_header"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        weekdayLabels.forEach { label ->
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF5FA37F),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One calendar page: a month grid of roomy, evenly spaced day buttons. The weekday header is
+ * rendered once above the pager (see [WeekdayHeader]) so it never scrolls or changes height
+ * between months.
+ */
 @Composable
 private fun CalendarMonthPage(
     month: YearMonth,
@@ -403,21 +441,6 @@ private fun CalendarMonthPage(
     val rows = cells.chunked(7).map { row -> row + List(7 - row.size) { null } }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            weekdayLabels.forEach { label ->
-                Box(
-                    modifier = Modifier.weight(1f),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF5FA37F),
-                    )
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(6.dp))
         rows.forEach { row ->
             Row(modifier = Modifier.fillMaxWidth()) {
                 row.forEach { day ->
