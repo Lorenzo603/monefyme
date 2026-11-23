@@ -29,8 +29,9 @@ import org.junit.Test
 /**
  * End-to-end coverage for the rebuilt transaction date picker (DatePickerModal).
  *
- * Asserts the picker still returns the same LocalDate contract to its caller when a day is
- * tapped, and covers the new selectable behaviour: prev/next month buttons next to the
+ * Asserts the picker still returns the same LocalDate contract to its caller: tapping a day
+ * only selects it (header updates, current date keeps its outline), and the OK button confirms.
+ * Covers: Cancel dismisses without confirming, prev/next month buttons next to the
  * month/year dropdown, jumping to another year through the dropdown, scrolling the calendar
  * itself to a neighbouring month, and the header edit button opening a validated manual date
  * entry modal (green header plus one dd/MM/yyyy input) that returns the manually entered date.
@@ -142,13 +143,57 @@ class DatePickerModalUiTest {
     }
 
     @Test
-    fun tappingADayReturnsTheSameLocalDateToTheCaller() {
+    fun tappingADayOnlySelectsAndOkConfirms() {
         showPicker(LocalDate.of(2025, 10, 1))
 
         dayNode(YearMonth.of(2025, 10), 15).performClick()
         composeTestRule.waitForIdle()
 
+        // A day click only moves the header; the caller is not notified yet.
+        assertNull(selected)
+        composeTestRule.onNodeWithTag("date_picker_selected_date")
+            .assertTextEquals("15 Oct 2025")
+
+        composeTestRule.onNodeWithTag("date_picker_ok").performClick()
+        composeTestRule.waitForIdle()
+
         assertEquals(LocalDate.of(2025, 10, 15), selected)
+    }
+
+    @Test
+    fun cancelDismissWithoutConfirming() {
+        showPicker(LocalDate.of(2025, 10, 1))
+
+        dayNode(YearMonth.of(2025, 10), 15).performClick()
+        composeTestRule.waitForIdle()
+        assertNull(selected)
+
+        composeTestRule.onNodeWithText("Cancel").performClick()
+        composeTestRule.waitForIdle()
+
+        assertNull(selected)
+        assertTrue(dismissed)
+    }
+
+    @Test
+    fun appliedDateStaysMarkedWithABlackCircleOutline() {
+        showPicker(LocalDate.of(2025, 10, 1))
+
+        composeTestRule.onNodeWithTag("date_picker_current_date_outline").assertIsDisplayed()
+    }
+
+    @Test
+    fun currentDateOutlineRemainsAfterSelectingAnotherDay() {
+        showPicker(LocalDate.of(2025, 10, 1))
+
+        dayNode(YearMonth.of(2025, 10), 15).performClick()
+        composeTestRule.waitForIdle()
+
+        assertNull(selected)
+        // The applied date (1 Oct 2025) keeps its outline while the header shows the pending pick.
+        composeTestRule.onNodeWithTag("date_picker_current_date_outline").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("date_picker_selected_date")
+            .assertTextEquals("15 Oct 2025")
     }
 
     @Test
@@ -193,8 +238,13 @@ class DatePickerModalUiTest {
         composeTestRule.waitForIdle()
 
         assertDropdownShows(YearMonth.of(2022, 10))
-        // And the day grid followed the jump: day 20 of October 2022 returns that date.
+        // And the day grid followed the jump: day 20 of October 2022 is selected and
+        // returned once OK is clicked.
         dayNode(YearMonth.of(2022, 10), 20).performClick()
+        composeTestRule.waitForIdle()
+        assertNull(selected)
+        composeTestRule.onNodeWithTag("date_picker_ok").performClick()
+        composeTestRule.waitForIdle()
         assertEquals(LocalDate.of(2022, 10, 20), selected)
     }
 

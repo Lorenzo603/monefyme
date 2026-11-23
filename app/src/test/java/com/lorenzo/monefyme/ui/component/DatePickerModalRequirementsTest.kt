@@ -401,6 +401,70 @@ class DatePickerModalRequirementsTest {
         )
     }
 
+    // --- Day click selects only; OK confirms; current date stays outlined ---
+
+    @Test
+    fun dayClickOnlySelectsAndDoesNotConfirm() {
+        val lambdaStart = pickerSource.indexOf("onDaySelected = { day ->")
+        assertTrue("The pager must pass an onDaySelected lambda to the month page", lambdaStart >= 0)
+        val lambdaEnd = pickerSource.indexOf("},", lambdaStart)
+        val lambda = pickerSource.substring(lambdaStart, lambdaEnd)
+        assertTrue(
+            "Day click must only move the pending selection (selectedDate = ...), not confirm it",
+            lambda.contains("selectedDate ="),
+        )
+        assertTrue(
+            "Day click must NOT call onDateSelected (OK is the only confirming control)",
+            !lambda.contains("onDateSelected"),
+        )
+    }
+
+    @Test
+    fun bottomRowShowsCancelAndOkAndOnlyOkConfirms() {
+        assertTrue(
+            "The bottom row must expose an OK button (date_picker_ok)",
+            pickerSource.contains("testTag(\"date_picker_ok\")"),
+        )
+        val okTag = pickerSource.indexOf("testTag(\"date_picker_ok\")")
+        val okBlock = pickerSource.substring(pickerSource.lastIndexOf("Button(", okTag), okTag)
+        assertTrue(
+            "The OK button must confirm the pending selection through onDateSelected(selectedDate)",
+            okBlock.contains("onClick = { onDateSelected(selectedDate) }"),
+        )
+
+        // Cancel keeps its green text style and dismisses without confirming.
+        val mainModal = pickerSource.substringBefore("private fun ManualDateEntryDialog(")
+        val cancelTag = mainModal.indexOf("Text(\"Cancel\")")
+        assertTrue("The main modal must keep a Cancel button", cancelTag >= 0)
+        val cancelBlock = mainModal.substring(mainModal.lastIndexOf("TextButton(", cancelTag), cancelTag)
+        assertTrue(
+            "The Cancel button must keep the green text style and dismiss without confirming",
+            cancelBlock.contains("contentColor = dialogGreen") && cancelBlock.contains("onClick = onDismiss") &&
+                !cancelBlock.contains("onDateSelected"),
+        )
+    }
+
+    @Test
+    fun appliedCurrentDateStaysMarkedWithABlackCircleOutline() {
+        val pageStart = pickerSource.indexOf("private fun CalendarMonthPage(")
+        assertTrue("The calendar page must exist", pageStart >= 0)
+        val pageSource = pickerSource.substring(pageStart, pickerSource.indexOf("private fun ManualDateEntryDialog("))
+        assertTrue(
+            "CalendarMonthPage must receive the applied currentDate",
+            pageSource.contains("currentDate: LocalDate"),
+        )
+        assertTrue(
+            "The calendar page must mark the applied date with a black circle outline",
+            pageSource.contains("val isCurrent = date == currentDate") &&
+                pageSource.contains(".border(2.dp, Color.Black, RoundedCornerShape(percent = 50))"),
+        )
+        // The current date is passed down from the picker's currentDate parameter.
+        assertTrue(
+            "The pager must pass the applied current date down to the calendar page",
+            pickerSource.contains("currentDate = currentDate"),
+        )
+    }
+
     // --- Callers keep working with the same LocalDate result ---
 
     @Test

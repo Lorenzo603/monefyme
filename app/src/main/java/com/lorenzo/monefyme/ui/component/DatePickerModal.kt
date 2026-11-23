@@ -2,6 +2,7 @@ package com.lorenzo.monefyme.ui.component
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -105,8 +106,10 @@ private val weekdayLabels = listOf("M", "T", "W", "T", "F", "S", "S")
  * month by month, and larger day cells with more spacing. While the dropdown is open its
  * full-width, scrollable three-column year grid replaces the calendar (see [YearPickerMenu]).
  *
- * Selecting a day, or confirming a valid manual date, reports the chosen [LocalDate] through
- * [onDateSelected] exactly like the previous dialog did.
+ * Selecting a day only moves the pending selection shown in the header; it is applied
+ * (reported through [onDateSelected]) when the OK button is clicked. The current/applied
+ * date is kept visible as a black circle outline on top of its day cell. Confirming a valid
+ * manual date reports the chosen [LocalDate] through [onDateSelected] immediately.
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -280,17 +283,16 @@ fun DatePickerModal(
                         CalendarMonthPage(
                             month = yearMonthOfAbsoluteMonthIndex(absoluteMonthOfPage(page)),
                             selectedDate = selectedDate,
+                            currentDate = currentDate,
                             today = today,
                             onDaySelected = { day ->
-                                val date = yearMonthOfAbsoluteMonthIndex(absoluteMonthOfPage(page)).atDay(day)
-                                selectedDate = date
-                                onDateSelected(date)
+                                selectedDate = yearMonthOfAbsoluteMonthIndex(absoluteMonthOfPage(page)).atDay(day)
                             },
                         )
                     }
                 }
 
-                // Cancel button, green text at the bottom right of the dialog.
+                // Cancel + OK at the bottom right: Cancel dismisses without applying, OK confirms.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -303,6 +305,20 @@ fun DatePickerModal(
                         colors = ButtonDefaults.textButtonColors(contentColor = dialogGreen),
                     ) {
                         Text("Cancel")
+                    }
+                    Button(
+                        onClick = { onDateSelected(selectedDate) },
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .testTag("date_picker_ok"),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = dialogGreen),
+                    ) {
+                        Text(
+                            text = "OK",
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                     }
                 }
             }
@@ -378,6 +394,7 @@ private fun YearPickerMenu(
 private fun CalendarMonthPage(
     month: YearMonth,
     selectedDate: LocalDate,
+    currentDate: LocalDate,
     today: LocalDate,
     onDaySelected: (Int) -> Unit,
 ) {
@@ -413,26 +430,38 @@ private fun CalendarMonthPage(
                         if (day != null) {
                             val date = month.atDay(day)
                             val isSelected = date == selectedDate
+                            val isCurrent = date == currentDate
                             val isToday = date == today
-                            Button(
-                                onClick = { onDaySelected(day) },
-                                modifier = Modifier
-                                    .size(DayCellHeight)
-                                    .testTag("date_picker_day_${month.year}_${month.monthValue}_$day"),
-                                // Selected day: a filled green circle. All others: no fill at all.
-                                shape = RoundedCornerShape(percent = 50),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isSelected) dialogGreen else Color.Transparent,
-                                    contentColor = onDialogText,
-                                ),
-                                contentPadding = PaddingValues(0.dp),
-                            ) {
-                                Text(
-                                    text = day.toString(),
-                                    color = if (isSelected) Color.White else onDialogText,
-                                    fontWeight = if (isToday) FontWeight.SemiBold else FontWeight.Normal,
-                                    fontSize = 15.sp,
-                                )
+                            Box(contentAlignment = Alignment.Center) {
+                                Button(
+                                    onClick = { onDaySelected(day) },
+                                    modifier = Modifier
+                                        .size(DayCellHeight)
+                                        .testTag("date_picker_day_${month.year}_${month.monthValue}_$day"),
+                                    // Selected day: a filled green circle. All others: no fill at all.
+                                    shape = RoundedCornerShape(percent = 50),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isSelected) dialogGreen else Color.Transparent,
+                                        contentColor = onDialogText,
+                                    ),
+                                    contentPadding = PaddingValues(0.dp),
+                                ) {
+                                    Text(
+                                        text = day.toString(),
+                                        color = if (isSelected) Color.White else onDialogText,
+                                        fontWeight = if (isToday) FontWeight.SemiBold else FontWeight.Normal,
+                                        fontSize = 15.sp,
+                                    )
+                                }
+                                // The applied date stays marked with a black circle outline on top of its cell.
+                                if (isCurrent) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(DayCellHeight)
+                                            .border(2.dp, Color.Black, RoundedCornerShape(percent = 50))
+                                            .testTag("date_picker_current_date_outline"),
+                                    )
+                                }
                             }
                         } else {
                             Spacer(modifier = Modifier.fillMaxWidth().height(DayCellHeight))
