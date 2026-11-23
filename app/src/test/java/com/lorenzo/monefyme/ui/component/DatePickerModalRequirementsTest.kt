@@ -157,6 +157,111 @@ class DatePickerModalRequirementsTest {
         )
     }
 
+    // --- Manual date entry: calendar icon returns to the picker without confirming ---
+
+    @Test
+    fun manualEntryModalKeepsItsStableTestTagsAndAddsCalendarButtonTag() {
+        val manualModal = manualModalSource()
+        for (tag in listOf(
+            "manual_date_header",
+            "manual_date_header_date",
+            "manual_date_input",
+            "manual_date_error",
+            "manual_date_cancel",
+            "manual_date_confirm",
+            "manual_date_calendar_button",
+        )) {
+            assertTrue("The manual modal must keep the test tag '$tag'", manualModal.contains("testTag(\"$tag\")"))
+        }
+    }
+
+    @Test
+    fun headerCalendarIconIsAClickableButtonThatSelectsWithoutConfirming() {
+        val manualModal = manualModalSource()
+        assertTrue(
+            "The manual modal header must expose a calendar icon button (manual_date_calendar_button)",
+            manualModal.contains("testTag(\"manual_date_calendar_button\")"),
+        )
+        val buttonTag = manualModal.indexOf("testTag(\"manual_date_calendar_button\")")
+        val buttonBlock = manualModal.substring(manualModal.lastIndexOf("IconButton(", buttonTag), buttonTag)
+        assertTrue(
+            "The header calendar icon must be a real IconButton, not a plain Icon",
+            buttonBlock.contains("onClick"),
+        )
+
+        // The header contains exactly one clickable control: the calendar icon.
+        val headerStart = manualModal.indexOf("testTag(\"manual_date_header\")")
+        val headerEnd = manualModal.indexOf("testTag(\"manual_date_input\")")
+        val headerBlock = manualModal.substring(headerStart, headerEnd)
+        val iconButtons = Regex("IconButton\\(").findAll(headerBlock).count()
+        val plainButtons = Regex("(?<![A-Za-z])Button\\(").findAll(headerBlock).count()
+        assertTrue("The header must contain exactly one IconButton (the calendar icon)", iconButtons == 1)
+        assertTrue("The header must contain no other clickable button", plainButtons == 0)
+
+        // On a valid entry the calendar button reports through onSelect, not onConfirm.
+        val onClickStart = buttonBlock.indexOf("onClick = {")
+        assertTrue("The calendar button must have an onClick handler", onClickStart >= 0)
+        val onClickBlock = buttonBlock.substring(onClickStart)
+        assertTrue("The calendar button must call onSelect(parsed)", onClickBlock.contains("onSelect("))
+        assertTrue("The calendar button must NOT confirm through onConfirm", !onClickBlock.contains("onConfirm("))
+    }
+
+    @Test
+    fun calendarIconAndSaveShareValidationAndErrorMessage() {
+        val manualModal = manualModalSource()
+        assertTrue(
+            "The manual modal must validate through one shared helper (fun validate())",
+            manualModal.contains("fun validate(): LocalDate?"),
+        )
+        val errorTags = Regex("Not a valid date\\. Use the dd/MM/yyyy format").findAll(manualModal).count()
+        assertTrue(
+            "The validation error message must be defined exactly once (shared by Save and the calendar button)",
+            errorTags == 1,
+        )
+        val confirmTag = manualModal.indexOf("testTag(\"manual_date_confirm\")")
+        val confirmBlock = manualModal.substring(manualModal.lastIndexOf("TextButton(", confirmTag), confirmTag)
+        assertTrue("Save must validate through the shared helper", confirmBlock.contains("validate()"))
+        val calendarTag = manualModal.indexOf("testTag(\"manual_date_calendar_button\")")
+        val calendarBlock = manualModal.substring(manualModal.lastIndexOf("IconButton(", calendarTag), calendarTag)
+        assertTrue("The calendar button must validate through the shared helper", calendarBlock.contains("validate()"))
+        // The manual modal must keep the shared error display.
+        assertTrue("The manual modal must keep the manual_date_error tag", manualModal.contains("testTag(\"manual_date_error\")"))
+    }
+
+    @Test
+    fun parentSelectsPendingDateOnCalendarIconAndConfirmsOnSave() {
+        val parent = pickerSource.substringBefore("private fun ManualDateEntryDialog(")
+        // The parent passes a separate onSelect lambda used by the calendar icon.
+        assertTrue(
+            "The parent must pass an onSelect lambda to the manual modal",
+            parent.contains("onSelect = {"),
+        )
+        // Both Save and the calendar icon share the same select-and-scroll helper.
+        val selectHelperStart = parent.indexOf("fun selectManualDate(")
+        assertTrue("The parent must extract a shared select-and-scroll helper", selectHelperStart >= 0)
+        val selectHelper = parent.substring(selectHelperStart, parent.indexOf("if (showManualEntry)", selectHelperStart))
+        assertTrue("The select helper must close the manual modal", selectHelper.contains("showManualEntry = false"))
+        assertTrue("The select helper must set the pending selection", selectHelper.contains("selectedDate = date"))
+        assertTrue("The select helper must scroll the pager to the entered date", selectHelper.contains("pagerState.scrollToPage("))
+        assertTrue(
+            "The select helper must NOT confirm the date in the caller",
+            !selectHelper.contains("onDateSelected"),
+        )
+
+        // Save goes through the helper and then confirms via onDateSelected.
+        val onConfirmStart = parent.indexOf("onConfirm = {")
+        val onSelectStart = parent.indexOf("onSelect = {")
+        assertTrue("The parent must pass both onConfirm and onSelect lambdas", onConfirmStart >= 0 && onSelectStart > onConfirmStart)
+        val onConfirmBlock = parent.substring(onConfirmStart, onSelectStart)
+        assertTrue("Save must go through the shared select helper", onConfirmBlock.contains("selectManualDate(date)"))
+        assertTrue("Save must confirm via onDateSelected", onConfirmBlock.contains("onDateSelected(date)"))
+
+        // The calendar icon goes through the same helper WITHOUT confirming.
+        val onSelectBlock = parent.substring(onSelectStart)
+        assertTrue("The calendar icon must go through the shared select helper", onSelectBlock.contains("selectManualDate(date)"))
+        assertTrue("The calendar icon must NOT confirm via onDateSelected", !onSelectBlock.contains("onDateSelected"))
+    }
+
     // --- Month/year dropdown, prev/next buttons on top, scrollable calendar ---
 
     @Test

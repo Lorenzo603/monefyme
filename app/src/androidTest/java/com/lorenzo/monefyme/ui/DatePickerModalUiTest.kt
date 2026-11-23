@@ -35,6 +35,8 @@ import org.junit.Test
  * month/year dropdown, jumping to another year through the dropdown, scrolling the calendar
  * itself to a neighbouring month, and the header edit button opening a validated manual date
  * entry modal (green header plus one dd/MM/yyyy input) that returns the manually entered date.
+ * The manual modal's header calendar icon returns to the picker with the entered date pending
+ * (not confirmed) through the same validate/error path as Save, and refuses invalid input too.
  *
  * Requires a device/emulator: run with ./gradlew connectedDebugAndroidTest.
  */
@@ -368,6 +370,65 @@ class DatePickerModalUiTest {
         // 31 February must be refused with a visible validation error and no date reported.
         assertNull(selected)
         composeTestRule.onNodeWithTag("manual_date_error").assertIsDisplayed()
+    }
+
+    @Test
+    fun saveButtonConfirmsImmediatelyAndClosesTheManualModal() {
+        showPicker(LocalDate.of(2025, 10, 1))
+
+        composeTestRule.onNodeWithTag("date_picker_edit_button").performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag("manual_date_input").performTextReplacement("29/02/2024")
+        composeTestRule.onNodeWithTag("manual_date_confirm").performClick()
+        composeTestRule.waitForIdle()
+
+        // Save confirms right away: the modal closed and the caller got the date.
+        composeTestRule.onNodeWithTag("manual_date_header").assertDoesNotExist()
+        assertEquals(LocalDate.of(2024, 2, 29), selected)
+    }
+
+    @Test
+    fun calendarIconReturnsToPickerWithDateSelectedButUnconfirmed() {
+        showPicker(LocalDate.of(2025, 10, 1))
+
+        composeTestRule.onNodeWithTag("date_picker_edit_button").performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag("manual_date_input").performTextReplacement("29/02/2024")
+        composeTestRule.onNodeWithTag("manual_date_calendar_button").performClick()
+        composeTestRule.waitForIdle()
+
+        // The modal closed, the main picker header shows the entered date, and the caller was
+        // NOT notified (the parent is confirmed by the main picker's OK button only).
+        composeTestRule.onNodeWithTag("manual_date_header").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("date_picker_selected_date")
+            .assertTextEquals("29 Feb 2024")
+        assertNull(selected)
+
+        // The main picker's OK button is what finally confirms the pending selection.
+        composeTestRule.onNodeWithTag("date_picker_ok").performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(LocalDate.of(2024, 2, 29), selected)
+    }
+
+    @Test
+    fun calendarIconKeepsModalOpenAndShowsErrorForInvalidInput() {
+        showPicker(LocalDate.of(2025, 10, 1))
+
+        composeTestRule.onNodeWithTag("date_picker_edit_button").performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag("manual_date_input").performTextReplacement("31/02/2025")
+        composeTestRule.onNodeWithTag("manual_date_calendar_button").performClick()
+        composeTestRule.waitForIdle()
+
+        // Same behaviour as Save: error shown, modal stays open, nothing selected or confirmed.
+        composeTestRule.onNodeWithTag("manual_date_header").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("manual_date_error").assertIsDisplayed()
+        assertNull(selected)
+        composeTestRule.onNodeWithTag("date_picker_selected_date")
+            .assertTextEquals("1 Oct 2025")
     }
 
 }

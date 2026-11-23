@@ -329,18 +329,26 @@ fun DatePickerModal(
         }
     }
 
+    // Shared "select and show" path for the manual modal: close it, make the entered date the
+    // pending selection in the header, and scroll the calendar to it. Does NOT confirm the date
+    // in the caller; that is only what onConfirm (Save) and the OK button do.
+    fun selectManualDate(date: LocalDate) {
+        showManualEntry = false
+        selectedDate = date
+        scope.launch {
+            pagerState.scrollToPage(pageOfAbsoluteMonth(absoluteMonthIndexOf(date)))
+        }
+    }
+
     if (showManualEntry) {
         ManualDateEntryDialog(
             currentDate = selectedDate,
             onDismiss = { showManualEntry = false },
             onConfirm = { date ->
-                showManualEntry = false
-                selectedDate = date
-                scope.launch {
-                    pagerState.scrollToPage(pageOfAbsoluteMonth(absoluteMonthIndexOf(date)))
-                }
+                selectManualDate(date)
                 onDateSelected(date)
             },
+            onSelect = { date -> selectManualDate(date) },
         )
     }
 }
@@ -503,7 +511,10 @@ private fun CalendarMonthPage(
  * picker (same compact "21 Nov 2026" format, centered and enlarged), a single date input
  * pre-filled with that date, and Save/Cancel buttons. A valid entry is parsed with the app's
  * [parseDateOrNull] and reported through [onConfirm]; an invalid one shows a validation error
- * and keeps the modal open.
+ * and keeps the modal open. The calendar-day icon in the header is a button that "returns to the
+ * calendar": on a valid entry it reports the date through [onSelect] (the parent closes this
+ * modal and makes the date the pending selection, without confirming it), while an invalid entry
+ * shows the same validation error as Save and keeps the modal open.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -511,9 +522,20 @@ private fun ManualDateEntryDialog(
     currentDate: LocalDate,
     onDismiss: () -> Unit,
     onConfirm: (LocalDate) -> Unit,
+    onSelect: (LocalDate) -> Unit,
 ) {
     var dateText by rememberSaveable { mutableStateOf(formatDate(currentDate)) }
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
+
+    // Shared validation for both Save and the header calendar button: the error text is
+    // identical, and an invalid entry keeps the modal open in both cases.
+    fun validate(): LocalDate? {
+        val parsed = parseDateOrNull(dateText)
+        if (parsed == null) {
+            errorMessage = "Not a valid date. Use the dd/MM/yyyy format, e.g. 21/11/2026."
+        }
+        return parsed
+    }
 
     // BasicAlertDialog like the main picker so the green header can span the whole modal window.
     BasicAlertDialog(
@@ -558,11 +580,21 @@ private fun ManualDateEntryDialog(
                                 fontSize = 32.sp,
                                 textAlign = TextAlign.Start,
                             )
-                            Icon(
-                                imageVector = Icons.Filled.CalendarToday,
-                                contentDescription = "Ok button",
-                                tint = Color.White,
-                            )
+                            IconButton(
+                                onClick = {
+                                    val parsed = validate()
+                                    if (parsed != null) {
+                                        onSelect(parsed)
+                                    }
+                                },
+                                modifier = Modifier.testTag("manual_date_calendar_button"),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.CalendarToday,
+                                    contentDescription = "Back to calendar",
+                                    tint = Color.White,
+                                )
+                            }
                         }
                     }
                 }
@@ -628,11 +660,9 @@ private fun ManualDateEntryDialog(
                     }
                     TextButton(
                         onClick = {
-                            val parsed = parseDateOrNull(dateText)
+                            val parsed = validate()
                             if (parsed != null) {
                                 onConfirm(parsed)
-                            } else {
-                                errorMessage = "Not a valid date. Use the dd/MM/yyyy format, e.g. 21/11/2026."
                             }
                         },
                         modifier = Modifier.testTag("manual_date_confirm"),
