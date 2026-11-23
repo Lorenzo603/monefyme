@@ -42,8 +42,12 @@ class RestoreScreenExportWiringTest {
             restoreScreenSource.contains("contentResolver.openOutputStream(uri)"),
         )
         assertTrue(
-            "A suggested Monefy.Export.yyyy-MM-dd.csv file name must be offered to the user.",
+            "A suggested Monefy.Export.yyyy-MM-dd.HH-mm-ss.csv file name must be offered to the user.",
             restoreScreenSource.contains("Monefy.Export."),
+        )
+        assertTrue(
+            "The export file name pattern must include a time component (yyyy-MM-dd.HH-mm-ss).",
+            restoreScreenSource.contains("yyyy-MM-dd.HH-mm-ss"),
         )
     }
 

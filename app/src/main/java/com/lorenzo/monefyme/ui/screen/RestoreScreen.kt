@@ -43,7 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lorenzo.monefyme.domain.CsvImportResult
 import com.lorenzo.monefyme.ui.viewmodel.MainViewModel
 import java.io.IOException
-import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
@@ -250,7 +250,8 @@ private fun ImportSummaryCard(importResult: CsvImportResult) {
 }
 
 private fun defaultExportFileName(): String {
-    return "Monefy.Export." + DateTimeFormatter.ISO_LOCAL_DATE.format(LocalDate.now()) + ".csv"
+    val stamp = DateTimeFormatter.ofPattern("yyyy-MM-dd.HH-mm-ss").format(LocalDateTime.now())
+    return "Monefy.Export.$stamp.csv"
 }
 
 private fun loadContent(context: Context, uri: Uri): ByteArray? {

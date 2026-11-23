@@ -1,6 +1,6 @@
 ---
-status: todo
-attempts: 1
+status: done
+attempts: 2
 title: "Add timestamp to CSV export filename"
 source: backlog.md
 depends_on: nothing
@@ -39,4 +39,6 @@ Tests (a test change is REQUIRED with any main change):
 
 ## Run log
 
--   STATUS: todo
+- 2026-11-23 21:18:30 attempt 2: status=done exit=0 log=09-csv-export-timestamp-filename-run2.log changed `defaultExportFileName()` in `app/src/main/java/com/lorenzo/monefyme/ui/screen/RestoreScreen.kt` to emit `Monefy.Export.<yyyy-MM-dd>.<HH-mm-ss>.csv` (LocalDateTime.now() + `yyyy-MM-dd.HH-mm-ss` pattern); update the export wiring test `RestoreScreenExportWiringTest.kt` to assert the new time-component pattern. Export flow, CSV content, and the Drive backup name are untouched. Verified with `./gradlew testDebugUnitTest` (BUILD SUCCESSFUL).
+-   STATUS: DONE changed `defaultExportFileName()` in `app/src/main/java/com/lorenzo/monefyme/ui/screen/RestoreScreen.kt` to emit `Monefy.Export.<yyyy-MM-dd>.<HH-mm-ss>.csv` (LocalDateTime.now() + `yyyy-MM-dd.HH-mm-ss` pattern); update the export wiring test `RestoreScreenExportWiringTest.kt` to assert the new time-component pattern. Export flow, CSV content, and the Drive backup name are untouched. Verified with `./gradlew testDebugUnitTest` (BUILD SUCCESSFUL).
+-   STATUS: DONE changed `defaultExportFileName()` in `app/src/main/java/com/lorenzo/monefyme/ui/screen/RestoreScreen.kt` to emit `Monefy.Export.<yyyy-MM-dd>.<HH-mm-ss>.csv` (LocalDateTime.now() + `yyyy-MM-dd.HH-mm-ss` pattern); update the export wiring test `RestoreScreenExportWiringTest.kt` to assert the new time-component pattern. Export flow, CSV content, and the Drive backup name are untouched. Verified with `./gradlew testDebugUnitTest` (BUILD SUCCESSFUL).
