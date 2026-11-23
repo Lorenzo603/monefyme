@@ -339,6 +339,72 @@ class HomeScreenDragHistoryTest {
         assertEquals("Swiping down should snap to 0", 0f, offset)
     }
 
+    /**
+     * The pie chart section must be DIMMED (brightness reduced) as the user drags up to reveal
+     * history, never faded out to alpha 0f. The dim must be a proportional, continuous function of
+     * the reveal offset, and it must reverse when the user drags down.
+     */
+    @Test
+    fun pieChartDimIsProportionalToRevealOffsetAndNeverFullyFades() {
+        // The dim used by HomeScreen: a dark overlay whose alpha is 0.55 * offset.
+        fun dimAlpha(offset: Float) = 0.55f * offset
+
+        assertEquals("No drag -> no dim", 0f, dimAlpha(0f))
+        assertEquals("Full reveal -> at most 55% dim", 0.55f, dimAlpha(1f))
+        assertEquals("Half reveal -> half dim", 0.275f, dimAlpha(0.5f), 0.001f)
+        // Proportional scaling: doubling the offset doubles the dim.
+        assertEquals(0.275f, dimAlpha(0.5f), 0.001f)
+        assertEquals(0.275f, 2f * dimAlpha(0.25f), 0.001f)
+        // Never fully transparent: the overlay stays well below 1.0 across the whole range.
+        for (i in 0..100) {
+            val offset = i / 100f
+            assertTrue(
+                "Dim at offset $offset must stay below full black (section stays faintly visible)",
+                dimAlpha(offset) < 1f,
+            )
+        }
+        // Drag down reverses the dim smoothly (monotonic decrease in offset).
+        val up = dimAlpha(0.8f)
+        val down = dimAlpha(0.6f)
+        assertTrue("Dragging down must reduce the dim", down < up)
+        assertEquals("Dim must move linearly with the offset", 0.55f * 0.2f, up - down, 0.001f)
+    }
+
+    /**
+     * Regression guard: HomeScreen must implement the pie chart dim as a dark overlay (or filter),
+     * not as `graphicsLayer { alpha = 1f - historyRevealOffset }`, and must keep the section
+     * visible at full reveal.
+     */
+    @Test
+    fun homeScreenDimsPieChartWithoutAlphaCrossfade() {
+        val source = readSource("app/src/main/java/com/lorenzo/monefyme/ui/screen/HomeScreen.kt")
+
+        assertFalse(
+            "The pie chart section must not use an alpha crossfade (`1f - historyRevealOffset`) " +
+                "- that hides the section completely at full reveal:",
+            source.contains("1f - historyRevealOffset"),
+        )
+        assertFalse(
+            "graphicsLayer alpha on the pie chart section is exactly the alpha-fade this test forbids:",
+            source.contains("graphicsLayer { alpha"),
+        )
+        assertTrue(
+            "The pie chart section must be dimmed via a dark overlay/filter driven by historyRevealOffset:",
+            source.contains("Color.Black.copy(alpha = 0.55f * historyRevealOffset)"),
+        )
+        // The overlay must sit over the ExpensePieChart inside the same Box, and the chart must
+        // keep its onCategoryClick / onCategorySlotClick wiring.
+        val pieChartBoxStart = source.indexOf("ExpensePieChart(")
+        assertTrue("ExpensePieChart not found", pieChartBoxStart >= 0)
+        val pieChartSection = source.substring(pieChartBoxStart, source.indexOf("BalanceAndHistorySheet("))
+        assertTrue(
+            "The dark overlay must wrap the ExpensePieChart:",
+            pieChartSection.contains("Color.Black.copy(alpha = 0.55f * historyRevealOffset)"),
+        )
+        assertTrue("onCategoryClick wiring must survive the change", pieChartSection.contains("onCategoryClick"))
+        assertTrue("onCategorySlotClick wiring must survive the change", pieChartSection.contains("onCategorySlotClick"))
+    }
+
     private fun readSource(relativePath: String): String {
         val file = File(findProjectRoot(), relativePath)
         assertTrue("Cannot find $relativePath under ${findProjectRoot().absolutePath}", file.exists())

@@ -271,24 +271,36 @@ fun HomeScreen(
                     Column(
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        ExpensePieChart(
-                            slices = pageExpenseSlices,
-                            incomeCents = pageTotalIncome,
-                            expenseCents = pageTotalExpense,
+                        Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(12.dp)
-                                .graphicsLayer { alpha = 1f - historyRevealOffset },
-                            onCategoryClick = { categoryName ->
-                                viewModel.requestCategoryExpansion(categoryName)
-                                onToggleHistoryFull(true)
-                            },
-                            // A click on a category's icon slot opens the add-expense flow with that
-                            // category already preselected.
-                            onCategorySlotClick = { categoryName ->
-                                onAddExpenseForCategory(categoryName)
-                            },
-                        )
+                                .padding(12.dp),
+                        ) {
+                            ExpensePieChart(
+                                slices = pageExpenseSlices,
+                                incomeCents = pageTotalIncome,
+                                expenseCents = pageTotalExpense,
+                                modifier = Modifier.fillMaxSize(),
+                                onCategoryClick = { categoryName ->
+                                    viewModel.requestCategoryExpansion(categoryName)
+                                    onToggleHistoryFull(true)
+                                },
+                                // A click on a category's icon slot opens the add-expense flow with that
+                                // category already preselected.
+                                onCategorySlotClick = { categoryName ->
+                                    onAddExpenseForCategory(categoryName)
+                                },
+                            )
+                            // Dimming overlay: as the user drags up to reveal the history sheet, the
+                            // pie chart section darkens proportionally with the reveal offset. It is a
+                            // dark overlay, not an alpha fade, so the section stays faintly visible
+                            // (at worst ~45% brightness) instead of disappearing.
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.55f * historyRevealOffset)),
+                            )
+                        }
 
                         BalanceAndHistorySheet(
                             viewModel = viewModel,
